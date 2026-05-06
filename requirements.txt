@@ -1,0 +1,17 @@
+# ─── Scraping ───────────────────────────────────────────────
+playwright>=1.44.0        # JS render + bot bypass
+beautifulsoup4>=4.12.0    # HTML parse
+httpx>=0.27.0             # Hızlı async HTTP (JS gerektirmeyen siteler)
+lxml>=5.0.0               # BS4 için hızlı parser
+
+# ─── Zamanlama ──────────────────────────────────────────────
+apscheduler>=3.10.0       # Cron zamanlayıcı
+
+# ─── Veritabanı ─────────────────────────────────────────────
+# SQLite stdlib'de mevcut — production için:
+# psycopg2-binary>=2.9.0  # PostgreSQL bağlantısı
+# sqlalchemy>=2.0.0        # ORM (isteğe bağlı)
+
+# ─── API (opsiyonel — web sitesine servis etmek için) ───────
+# fastapi>=0.111.0
+# uvicorn>=0.30.0
