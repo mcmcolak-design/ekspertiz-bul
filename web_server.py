@@ -6,10 +6,10 @@ from pathlib import Path
 app = FastAPI()
 DB_PATH = Path(__file__).parent / "ekspertiz_prices.db"
 
-FIRMS_DATA = [
+FIRMS = [
     {"id":"otorapor","name":"Otorapor Ekspertiz","address":"Bagcilar, Istanbul","phone":"0850 XXX XX XX","website":"https://www.otorapor.com.tr","lat":41.0392,"lng":28.8562,"certified":True,"rating":4.8,"reviews":1243},
     {"id":"autoking","name":"Auto King Ekspertiz","address":"Sisli, Istanbul","phone":"0212 XXX XX XX","website":"https://www.autoking.com.tr","lat":41.0602,"lng":28.9877,"certified":True,"rating":4.6,"reviews":876},
-    {"id":"dynomoss","name":"Dynomoss Oto Ekspertiz","address":"Kadikoy, Istanbul","phone":"0216 XXX XX XX","website":"https://dynomoss.com.tr","lat":40.9833,"lng":29.0333,"certified":False,"rating":4.5,"reviews":654},
+    {"id":"dynomoss","name":"Dynomoss Ekspertiz","address":"Kadikoy, Istanbul","phone":"0216 XXX XX XX","website":"https://dynomoss.com.tr","lat":40.9833,"lng":29.0333,"certified":False,"rating":4.5,"reviews":654},
     {"id":"rs_ekspertiz","name":"RS Oto Ekspertiz","address":"Besiktas, Istanbul","phone":"0212 XXX XX XX","website":"https://rsotoekspertiz.com","lat":41.0430,"lng":29.0070,"certified":True,"rating":4.3,"reviews":412},
     {"id":"arabam_ekspertiz","name":"Arabam.com Ekspertiz","address":"Maslak, Istanbul","phone":"0850 XXX XX XX","website":"https://www.arabam.com/oto-ekspertiz","lat":41.1057,"lng":29.0157,"certified":True,"rating":4.9,"reviews":2108},
 ]
@@ -19,189 +19,150 @@ def get_prices():
         return {}
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("""
-        SELECT f.firm_id, p.package_name, p.price, p.points
+        SELECT f.firm_id, p.package_name, p.price
         FROM packages p JOIN firms f ON f.firm_id = p.firm_id
         WHERE p.scraped_at = (SELECT MAX(p2.scraped_at) FROM packages p2 WHERE p2.firm_id = p.firm_id)
         ORDER BY p.price ASC
     """).fetchall()
     conn.close()
     prices = {}
-    for firm_id, pkg_name, price, points in rows:
-        if firm_id not in prices:
-            prices[firm_id] = []
-        prices[firm_id].append({"name": pkg_name, "price": price, "points": points})
+    for fid, pname, price in rows:
+        if fid not in prices:
+            prices[fid] = []
+        prices[fid].append({"name": pname, "price": price})
     return prices
 
-@app.get("/", response_class=HTMLResponse)
-def index():
-    prices = get_prices()
-    firms_json = json.dumps(FIRMS_DATA, ensure_ascii=False)
-    prices_json = json.dumps(prices, ensure_ascii=False)
-    html = get_html(firms_json, prices_json)
-    return html
-
-def get_html(firms_json, prices_json):
-    return """<!DOCTYPE html>
+PAGE = """<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>EkspertizBul</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a1a2e}
-header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:28px 20px;text-align:center}
-header h1{font-size:1.8rem;font-weight:800;margin-bottom:4px}
-header h1 span{color:#00e5a0}
-header p{color:#aaa;font-size:0.85rem}
-.loc-bar{background:white;padding:14px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);flex-wrap:wrap}
-.loc-btn{background:#00e5a0;border:none;cursor:pointer;padding:11px 22px;border-radius:10px;font-weight:700;font-size:.9rem;color:#000;transition:all .2s}
-.loc-btn:hover{background:#00ffa8}
-.loc-status{color:#666;font-size:.82rem;display:flex;align-items:center;gap:6px}
-.loc-dot{width:8px;height:8px;border-radius:50%;background:#ccc}
-.loc-dot.on{background:#00e5a0;box-shadow:0 0 8px #00e5a0}
-#map{height:280px;width:100%;border-bottom:3px solid #00e5a0}
-.container{max-width:900px;margin:20px auto;padding:0 16px}
-.sort-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
-.sort-label{color:#888;font-size:.82rem}
-.sort-btn{background:white;border:1px solid #ddd;padding:7px 13px;border-radius:8px;cursor:pointer;font-size:.8rem;transition:all .2s}
-.sort-btn:hover,.sort-btn.active{border-color:#00e5a0;color:#00a875;background:#f0fff8}
-.card{background:white;border-radius:14px;padding:18px;margin-bottom:10px;border:2px solid transparent;box-shadow:0 2px 10px rgba(0,0,0,.06);transition:all .2s}
-.card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.1)}
-.card.best{border-color:#00e5a0;background:linear-gradient(135deg,#fff,#f0fff8)}
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px;flex-wrap:wrap}
-.firm-name{font-weight:700;font-size:.98rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.badge{font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase}
-.b-best{background:#00e5a0;color:#000}
-.b-cert{background:#e8e4ff;color:#6c47ff}
-.firm-meta{display:flex;gap:10px;flex-wrap:wrap;color:#888;font-size:.78rem;margin-top:3px}
-.dist{background:#fff3cd;color:#856404;border:1px solid #ffc107;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.82rem;white-space:nowrap}
-.dist.near{background:#d4edda;color:#155724;border-color:#28a745}
-.pkgs{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.pkg{background:#f8f9fa;border:1px solid #eee;border-radius:8px;padding:7px 11px;font-size:.78rem}
-.pkg-p{font-weight:700;color:#1a1a2e;font-size:.9rem}
-.pkg-n{color:#888;font-size:.72rem}
-.actions{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
-.btn-g{background:#00e5a0;border:none;cursor:pointer;padding:8px 16px;border-radius:8px;font-weight:600;font-size:.82rem;color:#000;text-decoration:none;display:inline-block}
-.btn-g:hover{background:#00ffa8}
-.btn-w{background:none;border:1px solid #ddd;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#666}
-.btn-w:hover{border-color:#00e5a0;color:#00a875}
+body{font-family:Inter,sans-serif;background:#f0f2f5;color:#1a1a2e}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:24px 16px;text-align:center}
+h1{font-size:1.7rem;font-weight:800}h1 em{color:#00e5a0;font-style:normal}
+header p{color:#aaa;font-size:.85rem;margin-top:4px}
+.bar{background:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.07);flex-wrap:wrap}
+.locbtn{background:#00e5a0;border:none;cursor:pointer;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.88rem;color:#000}
+.locbtn:hover{background:#00ffa8}
+.locinfo{color:#666;font-size:.82rem;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block}
+.dot.on{background:#00e5a0;box-shadow:0 0 6px #00e5a0}
+#map{height:260px;border-bottom:3px solid #00e5a0}
+.wrap{max-width:860px;margin:18px auto;padding:0 14px}
+.sorts{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.sl{color:#888;font-size:.8rem}
+.sb{background:#fff;border:1px solid #ddd;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.78rem}
+.sb.on{border-color:#00e5a0;color:#00a875;background:#f0fff8}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;border:2px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.card.top{border-color:#00e5a0;background:linear-gradient(135deg,#fff,#f0fff8)}
+.ct{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.fn{font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.bst{background:#00e5a0;color:#000;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.bce{background:#e8e4ff;color:#6c47ff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.fm{display:flex;gap:8px;flex-wrap:wrap;color:#888;font-size:.76rem;margin-top:2px}
+.db{background:#fff3cd;color:#856404;border:1px solid #ffc107;padding:4px 10px;border-radius:16px;font-weight:700;font-size:.8rem;white-space:nowrap}
+.db.nr{background:#d4edda;color:#155724;border-color:#28a745}
+.pkgs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pk{background:#f8f9fa;border:1px solid #eee;border-radius:7px;padding:6px 10px}
+.pn{color:#888;font-size:.7rem}
+.pp{font-weight:700;font-size:.88rem}
+.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ag{background:#00e5a0;border:none;cursor:pointer;padding:7px 14px;border-radius:8px;font-weight:600;font-size:.8rem;color:#000;text-decoration:none;display:inline-block}
+.aw{background:none;border:1px solid #ddd;cursor:pointer;padding:7px 12px;border-radius:8px;font-size:.8rem;color:#555}
+.aw:hover{border-color:#00e5a0;color:#00a875}
 </style>
 </head>
 <body>
 <header>
-  <h1>Ekspertiz<span>Bul</span></h1>
+  <h1>Ekspertiz<em>Bul</em></h1>
   <p>Konumunuza En Yakin Oto Ekspertiz Firmalarini Bulun</p>
 </header>
-<div class="loc-bar">
-  <button class="loc-btn" onclick="getLocation()">Konumumu Bul</button>
-  <div class="loc-status">
-    <div class="loc-dot" id="locDot"></div>
-    <span id="locText">Konum alinmadi - butona basin</span>
-  </div>
+<div class="bar">
+  <button class="locbtn" id="locbtn" onclick="getLoc()">Konumumu Bul</button>
+  <div class="locinfo"><span class="dot" id="dot"></span><span id="loctxt">Konum alinmadi</span></div>
 </div>
 <div id="map"></div>
-<div class="container">
-  <div class="sort-bar">
-    <span class="sort-label">Sirala:</span>
-    <button class="sort-btn active" id="s1" onclick="sortBy('distance','s1')">En Yakin</button>
-    <button class="sort-btn" id="s2" onclick="sortBy('price','s2')">En Ucuz</button>
-    <button class="sort-btn" id="s3" onclick="sortBy('rating','s3')">En Yuksek Puan</button>
+<div class="wrap">
+  <div class="sorts">
+    <span class="sl">Sirala:</span>
+    <button class="sb on" id="b1" onclick="sort('dist','b1')">En Yakin</button>
+    <button class="sb" id="b2" onclick="sort('price','b2')">En Ucuz</button>
+    <button class="sb" id="b3" onclick="sort('rating','b3')">En Yuksek Puan</button>
   </div>
-  <div id="cards"></div>
+  <div id="list"></div>
 </div>
 <script>
-var FIRMS = """ + firms_json + """;
-var PRICES = """ + prices_json + """;
-var uLat=null,uLng=null,map=null,uMarker=null,currentSort='distance';
-
+var F=FIRMS_PLACEHOLDER;
+var P=PRICES_PLACEHOLDER;
+var uLat=null,uLng=null,map=null,um=null,srt='dist';
 function initMap(){
   map=L.map('map').setView([39.9,32.8],6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OpenStreetMap'}).addTo(map);
-  for(var i=0;i<FIRMS.length;i++){
-    var f=FIRMS[i];
-    L.marker([f.lat,f.lng]).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+f.address);
-  }
+  F.forEach(function(f){L.marker([f.lat,f.lng]).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+f.address);});
 }
-
-function getLocation(){
-  document.getElementById('locText').textContent='Konum aliniyor...';
-  if(!navigator.geolocation){alert('Tarayiciniz konum desteklemiyor.');return;}
+function getLoc(){
+  document.getElementById('loctxt').textContent='Alinıyor...';
+  if(!navigator.geolocation){alert('Konum desteklenmiyor');return;}
   navigator.geolocation.getCurrentPosition(function(p){
-    uLat=p.coords.latitude;
-    uLng=p.coords.longitude;
-    document.getElementById('locDot').classList.add('on');
-    document.getElementById('locText').textContent='Konumunuz alindi';
+    uLat=p.coords.latitude;uLng=p.coords.longitude;
+    document.getElementById('dot').className='dot on';
+    document.getElementById('loctxt').textContent='Konum alindi';
     map.setView([uLat,uLng],12);
-    if(uMarker)map.removeLayer(uMarker);
-    var icon=L.divIcon({html:'<div style="background:#00e5a0;width:14px;height:14px;border-radius:50%;border:3px solid white"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-    uMarker=L.marker([uLat,uLng],{icon:icon}).addTo(map).bindPopup('Siz buradasiniz').openPopup();
-    renderCards();
-  },function(){
-    document.getElementById('locText').textContent='Konum alinamadi - izin verin';
-    renderCards();
-  });
+    if(um)map.removeLayer(um);
+    var ic=L.divIcon({html:'<div style="width:12px;height:12px;background:#00e5a0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px #00e5a0"></div>',iconSize:[12,12],iconAnchor:[6,6]});
+    um=L.marker([uLat,uLng],{icon:ic}).addTo(map).bindPopup('Siz').openPopup();
+    render();
+  },function(){document.getElementById('loctxt').textContent='Konum alinamadi - izin verin';});
 }
-
-function calcDist(a,b,c,d){
-  var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
-  var x=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)*Math.sin(dG/2);
+function dist(a,b,c,d){
+  var R=6371,dl=(c-a)*Math.PI/180,dg=(d-b)*Math.PI/180;
+  var x=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dg/2)*Math.sin(dg/2);
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
-
-function sortBy(t,btnId){
-  currentSort=t;
-  document.getElementById('s1').classList.remove('active');
-  document.getElementById('s2').classList.remove('active');
-  document.getElementById('s3').classList.remove('active');
-  document.getElementById(btnId).classList.add('active');
-  renderCards();
+function sort(t,id){
+  srt=t;
+  ['b1','b2','b3'].forEach(function(i){document.getElementById(i).className='sb';});
+  document.getElementById(id).className='sb on';
+  render();
 }
-
-function renderCards(){
-  var firms=[];
-  for(var i=0;i<FIRMS.length;i++){
-    var f=FIRMS[i];
-    var d=null;
-    if(uLat&&uLng)d=calcDist(uLat,uLng,f.lat,f.lng);
-    firms.push({id:f.id,name:f.name,address:f.address,phone:f.phone,website:f.website,lat:f.lat,lng:f.lng,certified:f.certified,rating:f.rating,reviews:f.reviews,distance:d,prices:PRICES[f.id]||[]});
-  }
-  firms.sort(function(a,b){
-    if(currentSort==='distance'){if(!a.distance)return 1;if(!b.distance)return -1;return a.distance-b.distance;}
-    if(currentSort==='price'){var pa=a.prices.length?a.prices[0].price:99999;var pb=b.prices.length?b.prices[0].price:99999;return pa-pb;}
+function render(){
+  var list=F.map(function(f){return Object.assign({},f,{d:(uLat&&uLng)?dist(uLat,uLng,f.lat,f.lng):null,pkgs:P[f.id]||[]});});
+  list.sort(function(a,b){
+    if(srt==='dist'){if(!a.d)return 1;if(!b.d)return -1;return a.d-b.d;}
+    if(srt==='price'){return(a.pkgs[0]?a.pkgs[0].price:99999)-(b.pkgs[0]?b.pkgs[0].price:99999);}
     return b.rating-a.rating;
   });
-  var html='';
-  for(var i=0;i<firms.length;i++){
-    var f=firms[i];
-    var near=i===0&&f.distance!==null;
-    var dstr=f.distance!==null?f.distance.toFixed(1)+' km uzakta':'Konum alinmadi';
-    var pkgs='';
-    for(var j=0;j<Math.min(f.prices.length,3);j++){
-      var p=f.prices[j];
-      pkgs+='<div class="pkg"><div class="pkg-n">'+p.name+'</div><div class="pkg-p">'+( p.price?p.price.toLocaleString('tr'):'?')+' TL</div></div>';
-    }
-    if(!pkgs)pkgs='<div class="pkg"><div class="pkg-n">Fiyat yukleniyor...</div></div>';
-    var lat=f.lat,lng=f.lng;
-    html+='<div class="card'+(near?' best':'')+'"><div class="card-top"><div><div class="firm-name">'+f.name+(near?' <span class="badge b-best">En Yakin</span>':'')+(f.certified?' <span class="badge b-cert">Sertifikali</span>':'')+'</div><div class="firm-meta"><span>'+f.rating+' ('+f.reviews+')</span><span>'+f.address+'</span></div></div><div class="dist'+(near?' near':'')+'">'+dstr+'</div></div><div class="pkgs">'+pkgs+'</div><div class="actions"><a href="'+f.website+'" target="_blank" class="btn-g">Randevu Al</a><button class="btn-w" onclick="goMap('+lat+','+lng+')">Haritada Gor</button><button class="btn-w" onclick="yol('+lat+','+lng+')">Yol Tarifi</button></div></div>';
-  }
-  document.getElementById('cards').innerHTML=html;
+  var h='';
+  list.forEach(function(f,i){
+    var nr=i===0&&f.d!==null;
+    var ds=f.d!==null?f.d.toFixed(1)+' km':'Konum yok';
+    var pk='';
+    f.pkgs.slice(0,3).forEach(function(p){pk+='<div class="pk"><div class="pn">'+p.name+'</div><div class="pp">'+p.price+'TL</div></div>';});
+    if(!pk)pk='<div class="pk"><div class="pn">Fiyat yukleniyor</div></div>';
+    h+='<div class="card'+(nr?' top':'')+'"><div class="ct"><div><div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+(f.certified?'<span class="bce">Sertifikali</span>':'')+'</div><div class="fm"><span>'+f.rating+' ('+f.reviews+')</span><span>'+f.address+'</span></div></div><div class="db'+(nr?' nr':'')+'">'+ds+'</div></div><div class="pkgs">'+pk+'</div><div class="acts"><a href="'+f.website+'" target="_blank" class="ag">Randevu Al</a><button class="aw" onclick="goMap('+f.lat+','+f.lng+')">Haritada Gor</button><button class="aw" onclick="yol('+f.lat+','+f.lng+')">Yol Tarifi</button></div></div>';
+  });
+  document.getElementById('list').innerHTML=h;
 }
-
 function goMap(lat,lng){map.setView([lat,lng],15);window.scrollTo({top:0,behavior:'smooth'});}
-function yol(lat,lng){
-  var url=uLat?'https://www.google.com/maps/dir/'+uLat+','+uLng+'/'+lat+','+lng:'https://www.google.com/maps/search/'+lat+','+lng;
-  window.open(url,'_blank');
-}
-
-initMap();
-renderCards();
+function yol(lat,lng){window.open(uLat?'https://www.google.com/maps/dir/'+uLat+','+uLng+'/'+lat+','+lng:'https://www.google.com/maps/?q='+lat+','+lng,'_blank');}
+initMap();render();
 </script>
 </body>
 </html>"""
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    prices = get_prices()
+    firms_json = json.dumps(FIRMS, ensure_ascii=False)
+    prices_json = json.dumps(prices, ensure_ascii=False)
+    html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
+    return html
 
 @app.post("/scrape")
 async def trigger_scrape():
@@ -214,3 +175,4 @@ async def trigger_scrape():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
