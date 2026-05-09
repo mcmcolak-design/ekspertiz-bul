@@ -200,10 +200,11 @@ var TERMS = {
 
 function wrapTerms(text){
   if(!text) return text;
-  Object.keys(TERMS).forEach(function(term){
-    var escaped = term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  var keys = Object.keys(TERMS);
+  keys.forEach(function(term, idx){
+    var escaped = term.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&');
     var re = new RegExp(escaped, 'g');
-    text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
+    text = text.replace(re, '<span class="tip" data-tidx="'+idx+'">'+term+'</span>');
   });
   return text;
 }
@@ -567,7 +568,7 @@ function hideTip(){ tipEl.style.display='none'; }
 // Sayfa icindeki .tip elemanlarına event ekle
 document.addEventListener('mouseover', function(e){
   var t = e.target.closest('.tip');
-  if(t) showTip(e, t.dataset.term);
+  if(t){ var keys=Object.keys(TERMS); var term=keys[t.dataset.tidx]; showTip(e, term); }
 });
 document.addEventListener('mousemove', function(e){
   if(tipEl.style.display==='block') moveTip(e);
