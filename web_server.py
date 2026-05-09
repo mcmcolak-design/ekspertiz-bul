@@ -189,6 +189,10 @@ var TERMS = {
   'Conta': 'Motor parcalari arasindaki sizdirmazlik elemani. Conta kacagi motor hasarinin habercisidir.',
   'Supansiyon': 'Aracin yol tutus sistemini olusturan parcalar. Amortisör, yay ve baglanti elemanlarini icerir.',
   'ABS': 'Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.',
+  'OBD/Beyin': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari, silinen hatalar ve sensor degerlerini okur.',
+  'OBD/ECU': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari ve elektronik sorunlari tespit eder.',
+  'Alt Mekanik': 'Aracin alt kismi: rot, rotil, sanziman, diferansiyel, egzoz ve aks kontrollerini kapsar.',
+  'Fren/Supansiyon': 'Fren diski, balata ve amortisörlerin ozel platformda olcumlenmesi. Yol güvenligini dogrudan etkiler.',
   'ESP': 'Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.',
   'Airbag': 'Kaza aninda surucu ve yolcuyu koruyan hava yastigi. Patlamis airbag tehlikelidir.',
   'Mekanik Garanti': 'Ekspertizden sonra belirlenen sure icerisinde cikan mekanik arizalarin firma tarafindan karsilanmasi.',
@@ -197,7 +201,9 @@ var TERMS = {
 function wrapTerms(text){
   if(!text) return text;
   Object.keys(TERMS).forEach(function(term){
-    var re = new RegExp('\\b'+term+'\\b','g');
+    // \b yerine basit string icerme kontrolu - Turkce ve kisaltmalar icin daha guvenli
+    var escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var re = new RegExp('(?<![\\w>"])'+escaped+'(?![\\w<])', 'g');
     text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
   });
   return text;
