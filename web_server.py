@@ -96,11 +96,15 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .pn{color:#888;font-size:.7rem}
 .pp{font-weight:700;font-size:.88rem}
 .pp.gray{color:#bbb;font-size:.75rem;font-weight:400;font-style:italic}
-.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.ag{background:#00e5a0;border:none;cursor:pointer;padding:7px 14px;border-radius:8px;font-weight:600;font-size:.8rem;color:#000;text-decoration:none;display:inline-block}
-.ag:hover{background:#00ffa8}
-.aw{background:none;border:1px solid #ddd;cursor:pointer;padding:7px 12px;border-radius:8px;font-size:.8rem;color:#555}
-.aw:hover{border-color:#00e5a0;color:#00a875}
+.acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.ag{background:#00e5a0;border:2px solid #00e5a0;cursor:pointer;padding:8px 14px;border-radius:8px;font-weight:700;font-size:.8rem;color:#000;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.ag:hover{background:#00ffa8;border-color:#00ffa8}
+.aw-map{background:#fff;border:2px solid #3b82f6;cursor:pointer;padding:8px 12px;border-radius:8px;font-size:.8rem;color:#3b82f6;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.aw-map:hover{background:#eff6ff}
+.aw-dir{background:#fff;border:2px solid #f97316;cursor:pointer;padding:8px 12px;border-radius:8px;font-size:.8rem;color:#f97316;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.aw-dir:hover{background:#fff7ed}
+.aw-tel{background:#fff;border:2px solid #8b5cf6;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#8b5cf6;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.aw-tel:hover{background:#f5f3ff}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
 .pg{background:#fff;border:1px solid #ddd;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:.8rem}
 .pg.on{background:#00e5a0;border-color:#00e5a0;color:#000;font-weight:700}
@@ -287,9 +291,10 @@ function render(){
         '</div>'+
         '<div class="pkgs">'+pk+'</div>'+
         '<div class="acts">'+
-          '<a href="'+detayUrl+'" target="_blank" class="ag">Detay</a>'+
-          '<button class="aw" onclick="goMap('+f.lat+','+f.lng+')">Harita</button>'+
-          '<button class="aw" onclick="yol('+f.lat+','+f.lng+')">Yol Tarifi</button>'+
+          '<a href="'+detayUrl+'" target="_blank" class="ag">&#128269; Detay</a>'+
+          '<button class="aw-map" onclick="goMap('+f.lat+','+f.lng+')">&#128205; Harita</button>'+
+          '<button class="aw-dir" onclick="yol('+f.lat+','+f.lng+')">&#128388; Yol Tarifi</button>'+
+          (f.phone?'<a href="tel:'+f.phone+'" class="aw-tel">&#128222; '+f.phone+'</a>':'')+
         '</div></div>';
   });
   document.getElementById('list').innerHTML=h||'<p style="color:#aaa;text-align:center;padding:30px">Sonuc bulunamadi</p>';
