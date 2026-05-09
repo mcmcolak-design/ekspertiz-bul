@@ -201,9 +201,8 @@ var TERMS = {
 function wrapTerms(text){
   if(!text) return text;
   Object.keys(TERMS).forEach(function(term){
-    // \b yerine basit string icerme kontrolu - Turkce ve kisaltmalar icin daha guvenli
-    var escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    var re = new RegExp('(?<![\\w>"])'+escaped+'(?![\\w<])', 'g');
+    var escaped = term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    var re = new RegExp(escaped, 'g');
     text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
   });
   return text;
