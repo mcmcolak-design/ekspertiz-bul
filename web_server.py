@@ -1,7 +1,3 @@
-import os
-print("CWD:", os.getcwd())
-print("FIRMS_JSON exists:", (Path(__file__).parent / "firms_google.json").exists())
-print("Files:", os.listdir(Path(__file__).parent))
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import json, sqlite3
