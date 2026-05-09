@@ -16,6 +16,7 @@ FIRMS_JSON = Path("firms_google.json")
 CHAIN_PRICES = {
     "otorapor": {
         "website": "https://www.otorapor.com.tr",
+        "phone": "0850 222 68 72",
         "packages": [
             ("Kaporta/Boya Paketi", 4900),
             ("Bronz Paket",         5500),
@@ -28,6 +29,7 @@ CHAIN_PRICES = {
     },
     "dynobil": {
         "website": "https://www.dynobil.com",
+        "phone": "0850 840 92 92",
         "packages": [
             ("Standart Paket",  6500),
             ("Plus Paket",      8500),
@@ -36,6 +38,7 @@ CHAIN_PRICES = {
     },
     "autoking": {
         "website": "https://www.autoking.com.tr",
+        "phone": "0850 333 54 64",
         "packages": [
             ("Eko Paket",       5000),
             ("Standart Paket",  7500),
@@ -45,6 +48,7 @@ CHAIN_PRICES = {
     },
     "arabam": {
         "website": "https://www.arabam.com/oto-ekspertiz",
+        "phone": "0850 811 18 18",
         "packages": [
             ("Temel Paket",     5000),
             ("Standart Paket",  7500),
@@ -53,6 +57,7 @@ CHAIN_PRICES = {
     },
     "pilot garage": {
         "website": "https://pilotgarage.com",
+        "phone": "0850 303 74 74",
         "packages": [
             ("Temel Paket",     4500),
             ("Standart Paket",  7000),
@@ -61,6 +66,7 @@ CHAIN_PRICES = {
     },
     "yamanlar": {
         "website": "https://yamanlarekspertiz.com.tr",
+        "phone": "0232 469 00 00",
         "packages": [
             ("Baz Paket",       5000),
             ("Standart Paket",  7500),
@@ -152,9 +158,11 @@ def main():
                 (firm_id, pkg_name, price, now)
             )
 
-        # firms_google.json'a website ekle
+        # firms_google.json'a website ve telefon ekle
         if not f.get("website"):
             f["website"] = chain_data["website"]
+        if not f.get("phone") and chain_data.get("phone"):
+            f["phone"] = chain_data["phone"]
 
         matched += 1
         chain_counts[chain] = chain_counts.get(chain, 0) + 1

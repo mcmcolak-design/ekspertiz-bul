@@ -281,7 +281,7 @@ function render(){
         '<div class="ct"><div>'+
           '<div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+'</div>'+
           '<div class="fm">'+(stars?'<span class="stars">'+stars+'</span> '+f.rating+' ('+(f.reviews||0)+') ':'')+
-          (f.city||'')+(f.address?' \u2022 '+f.address:'')+'</div>'+
+          (f.city||'')+(f.address?' \u2022 '+f.address:'')+(f.phone?' \u2022 <a href="tel:'+f.phone+'" style="color:#00a875;text-decoration:none">'+f.phone+'</a>':'')+'</div>'+
         '</div>'+(ds?'<div class="db'+(nr?' nr':'')+'">'+ds+'</div>':'')+
         '</div>'+
         '<div class="pkgs">'+pk+'</div>'+
