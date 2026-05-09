@@ -7,21 +7,19 @@ app = FastAPI()
 DB_PATH = Path(__file__).parent / "ekspertiz_prices.db"
 FIRMS_JSON = Path(__file__).parent / "firms_google.json"
 
-# Varsayilan 5 firma (firms_google.json yoksa kullanilir)
 DEFAULT_FIRMS = [
-    {"id":"otorapor","name":"Otorapor Ekspertiz","address":"Bagcilar, Istanbul","phone":"0850 XXX XX XX","website":"https://www.otorapor.com.tr","lat":41.0392,"lng":28.8562,"certified":True,"rating":4.8,"reviews":1243,"city":"Istanbul"},
-    {"id":"autoking","name":"Auto King Ekspertiz","address":"Sisli, Istanbul","phone":"0212 XXX XX XX","website":"https://www.autoking.com.tr","lat":41.0602,"lng":28.9877,"certified":True,"rating":4.6,"reviews":876,"city":"Istanbul"},
-    {"id":"dynomoss","name":"Dynomoss Ekspertiz","address":"Kadikoy, Istanbul","phone":"0216 XXX XX XX","website":"https://dynomoss.com.tr","lat":40.9833,"lng":29.0333,"certified":False,"rating":4.5,"reviews":654,"city":"Istanbul"},
-    {"id":"rs_ekspertiz","name":"RS Oto Ekspertiz","address":"Besiktas, Istanbul","phone":"0212 XXX XX XX","website":"https://rsotoekspertiz.com","lat":41.0430,"lng":29.0070,"certified":True,"rating":4.3,"reviews":412,"city":"Istanbul"},
-    {"id":"arabam_ekspertiz","name":"Arabam.com Ekspertiz","address":"Maslak, Istanbul","phone":"0850 XXX XX XX","website":"https://www.arabam.com/oto-ekspertiz","lat":41.1057,"lng":29.0157,"certified":True,"rating":4.9,"reviews":2108,"city":"Istanbul"},
+    {"id":"otorapor","name":"Otorapor Ekspertiz","address":"Bagcilar, Istanbul","phone":"0850 XXX XX XX","website":"https://www.otorapor.com.tr","lat":41.0392,"lng":28.8562,"certified":True,"rating":4.8,"reviews":1243,"city":"Istanbul","place_id":""},
+    {"id":"autoking","name":"Auto King Ekspertiz","address":"Sisli, Istanbul","phone":"0212 XXX XX XX","website":"https://www.autoking.com.tr","lat":41.0602,"lng":28.9877,"certified":True,"rating":4.6,"reviews":876,"city":"Istanbul","place_id":""},
+    {"id":"dynomoss","name":"Dynomoss Ekspertiz","address":"Kadikoy, Istanbul","phone":"0216 XXX XX XX","website":"https://dynomoss.com.tr","lat":40.9833,"lng":29.0333,"certified":False,"rating":4.5,"reviews":654,"city":"Istanbul","place_id":""},
+    {"id":"rs_ekspertiz","name":"RS Oto Ekspertiz","address":"Besiktas, Istanbul","phone":"0212 XXX XX XX","website":"https://rsotoekspertiz.com","lat":41.0430,"lng":29.0070,"certified":True,"rating":4.3,"reviews":412,"city":"Istanbul","place_id":""},
+    {"id":"arabam_ekspertiz","name":"Arabam.com Ekspertiz","address":"Maslak, Istanbul","phone":"0850 XXX XX XX","website":"https://www.arabam.com/oto-ekspertiz","lat":41.1057,"lng":29.0157,"certified":True,"rating":4.9,"reviews":2108,"city":"Istanbul","place_id":""},
 ]
 
 def load_firms():
     if FIRMS_JSON.exists():
         with open(FIRMS_JSON, "r", encoding="utf-8") as f:
             firms = json.load(f)
-            # Sadece gecerli koordinatlari olan firmalari al
-            return [f for f in firms if f.get("lat") and f.get("lng")]
+            return [fi for fi in firms if fi.get("lat") and fi.get("lng")]
     return DEFAULT_FIRMS
 
 def get_prices():
@@ -61,15 +59,18 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .stat{text-align:center}
 .stat-n{font-size:1.4rem;font-weight:800;color:#00e5a0}
 .stat-l{font-size:.72rem;color:#888}
-.bar{background:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.07);flex-wrap:wrap}
-.locbtn{background:#00e5a0;border:none;cursor:pointer;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.88rem;color:#000}
+.bar{background:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.07);flex-wrap:wrap}
+.locbtn{background:#00e5a0;border:none;cursor:pointer;padding:10px 16px;border-radius:10px;font-weight:700;font-size:.85rem;color:#000;white-space:nowrap}
 .locbtn:hover{background:#00ffa8}
-.locinfo{color:#666;font-size:.82rem;display:flex;align-items:center;gap:6px}
+.locinfo{color:#666;font-size:.82rem;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block}
 .dot.on{background:#00e5a0;box-shadow:0 0 6px #00e5a0}
-.search-bar{flex:1;min-width:200px}
-.search-bar input{width:100%;padding:9px 14px;border:1px solid #ddd;border-radius:10px;font-size:.88rem;outline:none}
+.search-bar{flex:1;min-width:140px}
+.search-bar input{width:100%;padding:9px 14px;border:1px solid #ddd;border-radius:10px;font-size:.85rem;outline:none}
 .search-bar input:focus{border-color:#00e5a0}
+.sel-wrap{display:flex;gap:6px;flex-wrap:wrap}
+.sel-wrap select{padding:9px 10px;border:1px solid #ddd;border-radius:10px;font-size:.82rem;outline:none;background:#fff;cursor:pointer;color:#333;max-width:150px}
+.sel-wrap select:focus{border-color:#00e5a0}
 #map{height:260px;border-bottom:3px solid #00e5a0}
 .wrap{max-width:860px;margin:18px auto;padding:0 14px}
 .sorts{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
@@ -89,13 +90,16 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .db.nr{background:#d4edda;color:#155724;border-color:#28a745}
 .pkgs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .pk{background:#f8f9fa;border:1px solid #eee;border-radius:7px;padding:6px 10px}
+.pk.noprice{border-style:dashed;border-color:#ddd}
 .pn{color:#888;font-size:.7rem}
 .pp{font-weight:700;font-size:.88rem}
+.pp.gray{color:#bbb;font-size:.75rem;font-weight:400;font-style:italic}
 .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .ag{background:#00e5a0;border:none;cursor:pointer;padding:7px 14px;border-radius:8px;font-weight:600;font-size:.8rem;color:#000;text-decoration:none;display:inline-block}
+.ag:hover{background:#00ffa8}
 .aw{background:none;border:1px solid #ddd;cursor:pointer;padding:7px 12px;border-radius:8px;font-size:.8rem;color:#555}
 .aw:hover{border-color:#00e5a0;color:#00a875}
-.pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap}
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
 .pg{background:#fff;border:1px solid #ddd;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:.8rem}
 .pg.on{background:#00e5a0;border-color:#00e5a0;color:#000;font-weight:700}
 </style>
@@ -113,7 +117,11 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 <div class="bar">
   <button class="locbtn" onclick="getLoc()">Konumumu Bul</button>
   <div class="locinfo"><span class="dot" id="dot"></span><span id="loctxt">Konum alinmadi</span></div>
-  <div class="search-bar"><input type="text" id="searchInput" placeholder="Sehir veya firma ara..." oninput="doSearch()"></div>
+  <div class="search-bar"><input type="text" id="searchInput" placeholder="Firma ara..." oninput="applyFilters()"></div>
+  <div class="sel-wrap">
+    <select id="ilSelect" onchange="onIlChange()"><option value="">Tum Iller</option></select>
+    <select id="ilceSelect" onchange="applyFilters()"><option value="">Tum Ilceler</option></select>
+  </div>
 </div>
 <div id="map"></div>
 <div class="wrap">
@@ -136,17 +144,63 @@ var page=1,perPage=20;
 
 document.getElementById('firmCount').textContent=ALL_FIRMS.length.toLocaleString('tr');
 
+// IL/ILCE dropdown olustur
+(function buildDropdowns(){
+  var ilMap={};
+  ALL_FIRMS.forEach(function(f){
+    var il=(f.city||'').trim();
+    if(!il)return;
+    if(!ilMap[il])ilMap[il]=new Set();
+    if(f.address){
+      var parts=f.address.split(',');
+      // Son anlamli parcayi ilce say
+      for(var i=parts.length-1;i>=0;i--){
+        var p=parts[i].trim();
+        if(p.length>2&&!/^[0-9]/.test(p)&&p!==il){ilMap[il].add(p);break;}
+      }
+    }
+  });
+  var iller=Object.keys(ilMap).sort(function(a,b){return a.localeCompare(b,'tr');});
+  var ilSel=document.getElementById('ilSelect');
+  iller.forEach(function(il){var o=document.createElement('option');o.value=il;o.textContent=il;ilSel.appendChild(o);});
+  window._ilMap=ilMap;
+})();
+
+function onIlChange(){
+  var il=document.getElementById('ilSelect').value;
+  var ilceSel=document.getElementById('ilceSelect');
+  ilceSel.innerHTML='<option value="">Tum Ilceler</option>';
+  if(il&&window._ilMap[il]){
+    Array.from(window._ilMap[il]).sort(function(a,b){return a.localeCompare(b,'tr');}).forEach(function(ilce){
+      var o=document.createElement('option');o.value=ilce;o.textContent=ilce;ilceSel.appendChild(o);
+    });
+  }
+  applyFilters();
+}
+
+function applyFilters(){
+  var q=document.getElementById('searchInput').value.toLowerCase().trim();
+  var il=document.getElementById('ilSelect').value;
+  var ilce=document.getElementById('ilceSelect').value;
+  filtered=ALL_FIRMS.filter(function(f){
+    var matchQ=!q||(f.name&&f.name.toLowerCase().includes(q))||(f.address&&f.address.toLowerCase().includes(q));
+    var matchIl=!il||f.city===il;
+    var matchIlce=!ilce||(f.address&&f.address.includes(ilce));
+    return matchQ&&matchIl&&matchIlce;
+  });
+  page=1;render();
+}
+
 function initMap(){
   map=L.map('map').setView([39.9,32.8],6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OpenStreetMap'}).addTo(map);
-  // Sadece ilk 200 firmayı haritada göster (performans)
   ALL_FIRMS.slice(0,200).forEach(function(f){
     L.marker([f.lat,f.lng]).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+(f.address||''));
   });
 }
 
 function getLoc(){
-  document.getElementById('loctxt').textContent='Alinıyor...';
+  document.getElementById('loctxt').textContent='Aliniyor...';
   if(!navigator.geolocation){alert('Konum desteklenmiyor');return;}
   navigator.geolocation.getCurrentPosition(function(p){
     uLat=p.coords.latitude;uLng=p.coords.longitude;
@@ -166,18 +220,9 @@ function dist(a,b,c,d){
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 
-function doSearch(){
-  var q=document.getElementById('searchInput').value.toLowerCase().trim();
-  if(!q){filtered=ALL_FIRMS;}
-  else{filtered=ALL_FIRMS.filter(function(f){return (f.name&&f.name.toLowerCase().includes(q))||(f.city&&f.city.toLowerCase().includes(q))||(f.address&&f.address.toLowerCase().includes(q));});}
-  page=1;render();
-}
-
 function sort(t,id){
-  srt=t;
-  ['b1','b2','b3'].forEach(function(i){document.getElementById(i).className='sb';});
-  document.getElementById(id).className='sb on';
-  page=1;render();
+  srt=t;['b1','b2','b3'].forEach(function(i){document.getElementById(i).className='sb';});
+  document.getElementById(id).className='sb on';page=1;render();
 }
 
 function render(){
@@ -188,12 +233,10 @@ function render(){
     if(srt==='reviews')return(b.reviews||0)-(a.reviews||0);
     return 0;
   });
-
   var total=list.length;
-  var pages=Math.ceil(total/perPage);
+  var pages=Math.ceil(total/perPage)||1;
   var start=(page-1)*perPage;
   var pageItems=list.slice(start,start+perPage);
-
   document.getElementById('resultInfo').innerHTML='<strong>'+total.toLocaleString('tr')+'</strong> firma bulundu'+(uLat?' - konumunuza gore sirali':'');
 
   var h='';
@@ -201,21 +244,49 @@ function render(){
     var nr=i===0&&f.d!==null&&page===1;
     var ds=f.d!==null?f.d.toFixed(1)+' km':'';
     var stars='';
-    if(f.rating){for(var s=0;s<Math.round(f.rating);s++)stars+='★';}
-    var pk='';
-    f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+p.name+'</div><div class="pp">'+p.price+'TL</div></div>';});
-    var website=f.website||'#';
-    h+='<div class="card'+(nr?' top':'')+'"><div class="ct"><div><div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+'</div><div class="fm">'+(stars?'<span class="stars">'+stars+'</span> '+f.rating+' ('+(f.reviews||0)+')  ':'')+''+(f.city||'')+(f.address?' - '+f.address:'')+'</div></div>'+(ds?'<div class="db'+(nr?' nr':'')+'">'+ds+'</div>':'')+'</div>'+(pk?'<div class="pkgs">'+pk+'</div>':'')+'<div class="acts"><a href="'+website+'" target="_blank" class="ag">Detay</a><button class="aw" onclick="goMap('+f.lat+','+f.lng+')">Harita</button><button class="aw" onclick="yol('+f.lat+','+f.lng+')">Yol Tarifi</button></div></div>';
-  });
-  document.getElementById('list').innerHTML=h;
+    if(f.rating){for(var s=0;s<Math.round(f.rating);s++)stars+='&#9733;';}
 
-  // Sayfalama
+    // FIX: Fiyat
+    var pk='';
+    if(f.pkgs&&f.pkgs.length>0){
+      f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+p.name+'</div><div class="pp">'+p.price+' TL</div></div>';});
+    } else {
+      pk='<div class="pk noprice"><div class="pn">Fiyat</div><div class="pp gray">Bilgi yok</div></div>';
+    }
+
+    // FIX: Detay butonu
+    var detayUrl;
+    if(f.website&&f.website.trim()!==''){
+      detayUrl=f.website;
+    } else if(f.place_id&&f.place_id.trim()!==''){
+      detayUrl='https://www.google.com/maps/place/?q=place_id:'+f.place_id;
+    } else {
+      detayUrl='https://www.google.com/maps/search/'+encodeURIComponent(f.name)+'/@'+f.lat+','+f.lng+',17z';
+    }
+
+    h+='<div class="card'+(nr?' top':'')+'">'+
+        '<div class="ct"><div>'+
+          '<div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+'</div>'+
+          '<div class="fm">'+(stars?'<span class="stars">'+stars+'</span> '+f.rating+' ('+(f.reviews||0)+') ':'')+
+          (f.city||'')+(f.address?' \u2022 '+f.address:'')+'</div>'+
+        '</div>'+(ds?'<div class="db'+(nr?' nr':'')+'">'+ds+'</div>':'')+
+        '</div>'+
+        '<div class="pkgs">'+pk+'</div>'+
+        '<div class="acts">'+
+          '<a href="'+detayUrl+'" target="_blank" class="ag">Detay</a>'+
+          '<button class="aw" onclick="goMap('+f.lat+','+f.lng+')">Harita</button>'+
+          '<button class="aw" onclick="yol('+f.lat+','+f.lng+')">Yol Tarifi</button>'+
+        '</div></div>';
+  });
+  document.getElementById('list').innerHTML=h||'<p style="color:#aaa;text-align:center;padding:30px">Sonuc bulunamadi</p>';
+
   var ph='';
-  var start_p=Math.max(1,page-2);
-  var end_p=Math.min(pages,page+2);
-  if(start_p>1)ph+='<button class="pg" onclick="goPage(1)">1</button>';
-  for(var i=start_p;i<=end_p;i++)ph+='<button class="pg'+(i===page?' on':'')+'" onclick="goPage('+i+')">'+i+'</button>';
-  if(end_p<pages)ph+='<button class="pg" onclick="goPage('+pages+')">'+pages+'</button>';
+  var sp=Math.max(1,page-2),ep=Math.min(pages,page+2);
+  if(sp>1)ph+='<button class="pg" onclick="goPage(1)">1</button>';
+  if(sp>2)ph+='<span style="padding:7px 4px;color:#aaa">...</span>';
+  for(var i=sp;i<=ep;i++)ph+='<button class="pg'+(i===page?' on':'')+'" onclick="goPage('+i+')">'+i+'</button>';
+  if(ep<pages-1)ph+='<span style="padding:7px 4px;color:#aaa">...</span>';
+  if(ep<pages)ph+='<button class="pg" onclick="goPage('+pages+')">'+pages+'</button>';
   document.getElementById('pagination').innerHTML=ph;
 }
 
