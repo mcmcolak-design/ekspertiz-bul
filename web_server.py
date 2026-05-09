@@ -178,33 +178,41 @@ var filtered=ALL_FIRMS;
 var page=1,perPage=20;
 var onlyFiyatli=false;
 
-var TERMS = {
-  'DYNO': 'Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer. Gizli motor sorunlarini ortaya cikarir.',
-  'Dinamometre': 'Motorun gercek performansini olcen cihaz. Beygir gucu, tork ve aktarma organi kayiplarini gosterir.',
-  'OBD': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari ve silinen hata kayitlarini okur.',
-  'ECU': 'Aracin ana bilgisayari. Motor, sanziman ve diger sistemleri kontrol eder.',
-  'Tramer': 'Trafik Hasar Merkezi kaydi. Aracin sigortali kazalarda olusturdugu hasar tutarini gosteren resmi kayit.',
-  'Kaporta': 'Aracin dis metal govdesi. Degistirilmis veya boyatilmis parcalari tespit eder.',
-  'Sase': 'Aracin ana metal iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.',
-  'Conta': 'Motor parcalari arasindaki sizdirmazlik elemani. Conta kacagi motor hasarinin habercisidir.',
-  'Supansiyon': 'Aracin yol tutus sistemini olusturan parcalar. Amortisör, yay ve baglanti elemanlarini icerir.',
-  'ABS': 'Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.',
-  'OBD/Beyin': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari, silinen hatalar ve sensor degerlerini okur.',
-  'OBD/ECU': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari ve elektronik sorunlari tespit eder.',
-  'Alt Mekanik': 'Aracin alt kismi: rot, rotil, sanziman, diferansiyel, egzoz ve aks kontrollerini kapsar.',
-  'Fren/Supansiyon': 'Fren diski, balata ve amortisörlerin ozel platformda olcumlenmesi. Yol güvenligini dogrudan etkiler.',
-  'ESP': 'Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.',
-  'Airbag': 'Kaza aninda surucu ve yolcuyu koruyan hava yastigi. Patlamis airbag tehlikelidir.',
-  'Mekanik Garanti': 'Ekspertizden sonra belirlenen sure icerisinde cikan mekanik arizalarin firma tarafindan karsilanmasi.',
-};
+var TERMS = {};
+(function(){
+  var list = [
+    ['DYNO','Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer. Gizli motor sorunlarini ortaya cikarir.'],
+    ['Dinamometre','Motorun gercek performansini olcen cihaz. Beygir gucu ve aktarma organi kayiplarini gosterir.'],
+    ['OBD','Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlarini ve silinen hata kayitlarini okur.'],
+    ['ECU','Aracin ana bilgisayari. Motor ve sanziman sistemlerini kontrol eder.'],
+    ['Tramer','Trafik Hasar Merkezi kaydi. Sigortali kazalarda olusturulan resmi hasar gecmisi.'],
+    ['Kaporta','Aracin dis metal govdesi. Degistirilmis veya boyatilmis parcalari tespit eder.'],
+    ['Sase','Aracin ana metal iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.'],
+    ['Conta','Motor parcalari arasindaki sizdirmazlik elemani. Kacak motor hasarinin habercisidir.'],
+    ['Supansiyon','Aracin yol tutus sistemi. Amortisör, yay ve baglanti elemanlarini icerir.'],
+    ['ABS','Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.'],
+    ['ESP','Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.'],
+    ['Airbag','Kaza aninda koruyucu hava yastigi. Patlamis airbag tehlikelidir.'],
+    ['Alt Mekanik','Aracin alt kismi: rot, rotil, sanziman, diferansiyel ve aks kontrolleri.'],
+    ['Mekanik Garanti','Ekspertiz sonrasi belirlenen sure icerisinde cikan arizalarin firma tarafindan karsilanmasi.'],
+    ['Hasar Kaydi','TRAMER sistemindeki resmi kaza ve hasar gecmisi sorgusu.'],
+    ['OBD_SLASH_Beyin','Elektronik beyin testi. Ariza kodlari, silinen hatalar ve sensor degerleri okunur.'],
+    ['OBD_SLASH_ECU','Elektronik beyin testi. Ariza kodlari ve elektronik sorunlar tespit edilir.'],
+    ['Fren_SLASH_Supansiyon','Fren ve amortisörlerin ozel platformda olcumlenmesi. Yol guvenligini etkiler.'],
+  ];
+  list.forEach(function(t){ TERMS[t[0]]=t[1]; });
+})();
 
 function wrapTerms(text){
   if(!text) return text;
-  var keys = Object.keys(TERMS);
-  keys.forEach(function(term, idx){
-    var escaped = term.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&');
-    var re = new RegExp(escaped, 'g');
-    text = text.replace(re, '<span class="tip" data-tidx="'+idx+'">'+term+'</span>');
+  Object.keys(TERMS).forEach(function(key){
+    // _SLASH_ olan keyler icin gercek gorunum ile eslestir
+    var display = key.replace(/_SLASH_/g, '/');
+    var escaped = display.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&');
+    try {
+      var re = new RegExp(escaped, 'g');
+      text = text.replace(re, '<span class="tip" data-tkey="'+encodeURIComponent(key)+'">'+display+'</span>');
+    } catch(e) {}
   });
   return text;
 }
@@ -568,7 +576,7 @@ function hideTip(){ tipEl.style.display='none'; }
 // Sayfa icindeki .tip elemanlarına event ekle
 document.addEventListener('mouseover', function(e){
   var t = e.target.closest('.tip');
-  if(t){ var keys=Object.keys(TERMS); var term=keys[t.dataset.tidx]; showTip(e, term); }
+  if(t){ var key=decodeURIComponent(t.dataset.tkey||''); showTip(e, key); }
 });
 document.addEventListener('mousemove', function(e){
   if(tipEl.style.display==='block') moveTip(e);
