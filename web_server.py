@@ -106,6 +106,11 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #8b5cf6;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#8b5cf6;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#f5f3ff}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
+.tip{border-bottom:1px dashed #00a875;cursor:help;color:inherit;font-weight:600}
+.tipbox{position:fixed;background:#1a1a2e;color:#fff;padding:8px 12px;border-radius:8px;font-size:.78rem;max-width:220px;line-height:1.5;z-index:9999;pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.tipbox::after{content:'';position:absolute;bottom:-6px;left:14px;border:6px solid transparent;border-bottom:none;border-top-color:#1a1a2e}
+.rehber-link{display:inline-block;background:#f0fff8;border:1px solid #00e5a0;color:#00a875;padding:4px 10px;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;margin-left:6px}
+.rehber-link:hover{background:#00e5a0;color:#000}
 .cmp-btn{background:#fff;border:2px solid #6366f1;color:#6366f1;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:700;margin-left:auto}
 .cmp-btn:hover{background:#eef2ff}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
@@ -135,7 +140,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 <header>
   <h1>Ekspertiz<em>Bul</em></h1>
   <p>Turkiye'nin En Buyuk Oto Ekspertiz Platformu</p>
-  <p style="margin-top:6px;font-size:.75rem;color:#888">Iletisim: <a href="mailto:mcolakai@gmail.com" style="color:#00e5a0;text-decoration:none">mcolakai@gmail.com</a></p>
+  <p style="margin-top:6px;font-size:.75rem;color:#888">Iletisim: <a href="mailto:mcolakai@gmail.com" style="color:#00e5a0;text-decoration:none">mcolakai@gmail.com</a> &nbsp;|&nbsp; <a href="/rehber" style="color:#00e5a0;text-decoration:none">&#128218; Ekspertiz Rehberi</a></p>
   <div class="stats">
     <div class="stat"><div class="stat-n" id="firmCount">0</div><div class="stat-l">Firma</div></div>
     <div class="stat"><div class="stat-n">81</div><div class="stat-l">Il</div></div>
@@ -289,7 +294,7 @@ function render(){
     // FIX: Fiyat
     var pk='';
     if(f.pkgs&&f.pkgs.length>0){
-      f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+p.name+'</div><div class="pp">'+p.price+' TL</div></div>';});
+      f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+wrapTerms(p.name)+'</div><div class="pp">'+p.price+' TL</div></div>';});
     } else {
       pk='<div class="pk noprice"><div class="pn">Fiyat</div><div class="pp gray">Bilgi yok</div></div>';
     }
@@ -470,7 +475,7 @@ function renderCmpTable(){
   // Kapsam
   h += '<tr><td class="lbl">Kapsam</td>';
   cols.forEach(function(p){
-    h += '<td>'+p.features.map(function(f){ return '&#10003; '+f; }).join('<br>')+'</td>';
+    h += '<td>'+p.features.map(function(f){ return '&#10003; '+wrapTerms(f); }).join('<br>')+'</td>';
   });
   h += '</tr>';
 
@@ -492,7 +497,67 @@ function renderCmpTable(){
 document.getElementById('cmpModal').addEventListener('click', function(e){
   if(e.target===this) closeCompare();
 });
+
+// ============ TOOLTIP ============
+var TERMS = {
+  'DYNO': 'Dinamometre testi. Motorun urettigi beygir gucu (HP) ve tork degerini olcer. Gizli guc kayiplarini tespit eder.',
+  'Dinamometre': 'Motorun gercek performansini olcen cihaz. Beygir gucu, tork ve aktarma organi kayiplarini gosterir.',
+  'OBD': 'On-Board Diagnostics. Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlarini ve sensor degerlerini okur.',
+  'ECU': 'Aracin ana bilgisayari (beyni). Motor, sanziman ve diger sistemleri kontrol eder. OBD ile taranir.',
+  'Tramer': 'Trafik Hasar Merkezi kaydi. Aracin gecmiste kazaya karısıp karismadigini ve hasar tutarini gosteren resmi kayit.',
+  'Kaporta': 'Aracin dis metal govdesi. Kapi, camurluk, kaput, tavan ve bagaj kapaklarini kapsar.',
+  'Sase': 'Aracin ana iskelet yapisi. Hasar gormus sase ciddi guvenlik riski olusturur.',
+  'Conta': 'Motor parcalari arasindaki sizdirmazlik elemani. Conta kaçagi motor hasarinin habercisidir.',
+  'Supansiyon': 'Aracin yol tutuş sistemini olusturan parcalar. Amortisör, yay ve baglanti elemanlarini icerir.',
+  'ABS': 'Anti-lock Braking System. Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.',
+  'ESP': 'Electronic Stability Program. Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.',
+  'Airbag': 'Kaza aninda surucu ve yolcuyu koruyan hava yastigi sistemi. Patlamis veya iptal edilmis airbag tehlikelidir.',
+  'Alt Mekanik': 'Aracin altta kalan parcalari: rot, rotil, sanziman, diferansiyel, egzoz ve aks kontrollerini kapsar.',
+  'Boya Olcumu': 'Mikron cinsinden boya kalinligini olcer. Yuksek deger boyali veya degisik parca olduguna isaret eder.',
+  'Hasar Kaydi': 'SGK/TRAMER sistemi uzerinden sorgulanabilen resmi kaza ve hasar gecmisi.',
+  'Mekanik Garanti': 'Ekspertizden sonra belirlenen sure icerisinde cikan mekanik arizalarin firma tarafindan karsilanmasi.',
+};
+
+var tipEl = document.getElementById('tipbox');
+
+function showTip(e, term){
+  if(!TERMS[term]) return;
+  tipEl.textContent = TERMS[term];
+  tipEl.style.display = 'block';
+  moveTip(e);
+}
+function moveTip(e){
+  var x = e.clientX + 12, y = e.clientY - 10;
+  if(x + 230 > window.innerWidth) x = e.clientX - 235;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = y + 'px';
+}
+function hideTip(){ tipEl.style.display='none'; }
+
+// Sayfa icindeki .tip elemanlarına event ekle
+document.addEventListener('mouseover', function(e){
+  var t = e.target.closest('.tip');
+  if(t) showTip(e, t.dataset.term);
+});
+document.addEventListener('mousemove', function(e){
+  if(tipEl.style.display==='block') moveTip(e);
+});
+document.addEventListener('mouseout', function(e){
+  if(e.target.closest('.tip')) hideTip();
+});
+
+// CMP tablosunda terimleri tip'e cevir
+function wrapTerms(text){
+  Object.keys(TERMS).forEach(function(term){
+    var re = new RegExp('\\b'+term+'\\b','g');
+    text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
+  });
+  return text;
+}
 </script>
+<!-- Tooltip -->
+<div class="tipbox" id="tipbox"></div>
+
 <!-- Karsilastirma Modal -->
 <div class="modal-bg" id="cmpModal">
   <div class="modal">
@@ -517,6 +582,132 @@ def index():
     prices_json = json.dumps(prices, ensure_ascii=False)
     html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
     return html
+
+@app.get("/rehber", response_class=HTMLResponse)
+def rehber():
+    return """<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ekspertiz Rehberi - EkspertizBul</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Inter,sans-serif;background:#f0f2f5;color:#1a1a2e}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:20px 16px;text-align:center}
+header h1{font-size:1.5rem;font-weight:800}
+header h1 em{color:#00e5a0;font-style:normal}
+header p{color:#aaa;font-size:.85rem;margin-top:4px}
+.back{display:inline-block;margin:14px 16px;background:#fff;border:1px solid #ddd;padding:7px 14px;border-radius:8px;text-decoration:none;color:#555;font-size:.82rem}
+.back:hover{border-color:#00e5a0;color:#00a875}
+.wrap{max-width:820px;margin:0 auto;padding:0 16px 40px}
+.section{background:#fff;border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.section h2{font-size:1.05rem;font-weight:800;color:#1a1a2e;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #00e5a0}
+.term{margin-bottom:14px;padding:12px 14px;background:#f8f9fa;border-radius:10px;border-left:3px solid #00e5a0}
+.term h3{font-size:.9rem;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.term p{font-size:.82rem;color:#555;line-height:1.6}
+.term .tag{display:inline-block;background:#00e5a0;color:#000;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:4px;margin-bottom:6px}
+.step{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start}
+.step-num{background:#00e5a0;color:#000;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0}
+.step-txt h3{font-size:.88rem;font-weight:700;margin-bottom:3px}
+.step-txt p{font-size:.8rem;color:#666;line-height:1.5}
+.pkg-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px}
+.pkg-table th{background:#1a1a2e;color:#fff;padding:9px 12px;text-align:left}
+.pkg-table td{padding:8px 12px;border-bottom:1px solid #eee}
+.pkg-table tr:nth-child(even) td{background:#fafafa}
+.pkg-table .yes{color:#00a875;font-weight:700}
+.pkg-table .no{color:#ccc}
+.faq{margin-bottom:12px}
+.faq h3{font-size:.88rem;font-weight:700;color:#1a1a2e;margin-bottom:5px;cursor:pointer}
+.faq h3:hover{color:#00a875}
+.faq p{font-size:.82rem;color:#555;line-height:1.6;padding-left:10px;border-left:2px solid #00e5a0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ekspertiz<em>Bul</em> Rehberi</h1>
+  <p>Oto ekspertiz hakkinda bilmeniz gereken her sey</p>
+</header>
+<a href="/" class="back">&#8592; Ana Sayfaya Don</a>
+<div class="wrap">
+
+  <!-- TERIMLER -->
+  <div class="section">
+    <h2>&#128218; Terimler Sozlugu</h2>
+
+    <div class="term"><span class="tag">TEST</span><h3>DYNO / Dinamometre Testi</h3>
+    <p>Motorun urettigi gercek beygir gucu (HP) ve torku olcer. Ozel bir dinamometre platfomu uzerinde aracin cekis gucu olculerek performans kaybi, turbo sorunu veya sanziman problemi tespit edilir. Gizli motor sorunlarini ortaya cikarir.</p></div>
+
+    <div class="term"><span class="tag">ELEKTRONIK</span><h3>OBD / ECU Kontrolu</h3>
+    <p>OBD (On-Board Diagnostics), aracin elektronik beyin unitesine (ECU) baglanan teshis sistemidir. Ariza kodlari, silinen hata kayitlari, sensor degerleri ve kaza sonrasi sifirlanmis sayaclar okunur. Saticinin gizledigi elektronik sorunlari gosterir.</p></div>
+
+    <div class="term"><span class="tag">RESMI KAYIT</span><h3>Tramer / Hasar Kaydi</h3>
+    <p>Trafik Hasar Merkezi (TRAMER) kaydı. Aracin sigortali kazalarda olusturduğu hasar tutarini ve tarihini gosteren resmi veri tabanidir. Sigortasiz kazalar bu sistemde gorunmez, bu nedenle kaporta kontrolu de yapilmalidir.</p></div>
+
+    <div class="term"><span class="tag">GOVDE</span><h3>Kaporta Kontrolu</h3>
+    <p>Mikron cinsinden boya kalinlik olcumu yapilarak degistirilmis veya boyatilmis parcalar tespit edilir. Sase, podye, direk gibi ana taşiyici elemanlarin hasar gorip gormedigine bakilir. Trafik kazasi gecmisini ortaya cikarir.</p></div>
+
+    <div class="term"><span class="tag">GOVDE</span><h3>Sase</h3>
+    <p>Aracin zemine en yakin ana metal iskeletidir. Hasar goren sase tam olarak duzeltilmesi zor, bazen imkansiz bir yapisal problemdir ve aracin guvenligini dogrudan etkiler. Sase hasari aracin degerini ciddi sekilde dusurebilir.</p></div>
+
+    <div class="term"><span class="tag">MOTOR</span><h3>Conta Kacagi</h3>
+    <p>Motor parcalari arasindaki sizdirmazlik elemani olan contanin bozulmasi. Motor yagi, antifriz veya yanma gazlarinin kaçmasi motor hasarinin habercisidir. Conta kacagi erken tespit edilmezse motorun tamamen hasar gormesine yol acabilir.</p></div>
+
+    <div class="term"><span class="tag">GUVENLIK</span><h3>Supansiyon / Amortisör Testi</h3>
+    <p>Aracin yol tutusunu saglayan supansiyon sistemi ozel platformlarda test edilir. Amortisör performansi, rotil ve rot basi asınımı, yanal kayma degeri olculur. Bozuk supansiyon fren mesafesini uzatır ve surus guvensizligi yaratir.</p></div>
+
+    <div class="term"><span class="tag">GUVENLIK</span><h3>Airbag Testi</h3>
+    <p>Daha once patlamis veya devre disi bırakılmış hava yastıklarının tespiti. Bazi saticilar kaza sonrasi hava yastıgını ucuz yollarla doldurur. Bu durum bir sonraki kazada airbag'in calismamasi anlamına gelir.</p></div>
+
+    <div class="term"><span class="tag">ELEKTRONIK</span><h3>ABS / ESP</h3>
+    <p>ABS (Anti-lock Braking System) tekerleklerin frenlemede kilitlenmesini onler. ESP (Electronic Stability Program) aracin kontrolden cikmasini engeller. Bu sistemlerin calısip calismadiginin kontrolu guvenlik acisindan kritiktir.</p></div>
+
+  </div>
+
+  <!-- NASIL EKSPERTIZ YAPTIRILIR -->
+  <div class="section">
+    <h2>&#128295; Ekspertiz Nasil Yaptirilir?</h2>
+    <div class="step"><div class="step-num">1</div><div class="step-txt"><h3>Firma Secin</h3><p>TSE belgeli, bagimsiz bir ekspertiz firmasi secin. Araci satin aldığınız galerinin anlasmali oldugu firma yerine bagimsiz bir firma tercih edin.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-txt"><h3>Paketi Belirleyin</h3><p>Aracin fiyatına ve yaşına gore paket secin. 100.000 TL uzeri araclar icin en az Gold/Full paket onerilir. Ucuz pakette gizli sorun gorunmeyebilir.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-txt"><h3>Randevu Alin</h3><p>Firma ile randevu alın. Ekspertiz merkezi tercihen satıcıya yakin veya notr bir lokasyonda olmali. Satici tarafindan yonlendirilen yere gitmeyin.</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-txt"><h3>Ekspertizi Izleyin</h3><p>Mumkunse ekspertiz sirasında bulunun. Teknisyenin aracı lifte kaldirdigini, boya olcumu yaptigini ve OBD'ye baglandigini gorsel olarak doğrulayın.</p></div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-txt"><h3>Raporu Inceleyin</h3><p>Raporu detaylıca okuyun. Degisik parca, boya farki veya ariza kodu varsa fiyat muzakeresi yapin ya da alimdan vazgecin. Raporun dijital kopyasini alin.</p></div></div>
+  </div>
+
+  <!-- PAKET KARSILASTIRMA -->
+  <div class="section">
+    <h2>&#128230; Hangi Paket Benim Icin Dogru?</h2>
+    <table class="pkg-table">
+      <thead><tr><th>Kontrol</th><th>Temel</th><th>Standart</th><th>Full/Gold</th><th>Premium</th></tr></thead>
+      <tbody>
+        <tr><td>Kaporta/Boya</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>Tramer Sorgusu</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>Motor/Alt Mekanik</td><td class="no">&#10005;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>OBD/Beyin Testi</td><td class="no">&#10005;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>DYNO Performans</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>Fren/Supansiyon</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>Airbag Testi</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="yes">&#10003;</td></tr>
+        <tr><td>Mekanik Garanti</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="yes">&#10003;</td></tr>
+        <tr><td><b>Tahmini Fiyat</b></td><td>4.500-5.500 TL</td><td>6.500-8.000 TL</td><td>9.000-12.000 TL</td><td>13.000+ TL</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SSS -->
+  <div class="section">
+    <h2>&#10067; Sik Sorulan Sorular</h2>
+    <div class="faq"><h3>Ekspertiz zorunlu mu?</h3><p>Yasal zorunluluk olmamakla birlikte 2018'den itibaren galericilerin ekspertiz raporu sunmasi tavsiye edilmektedir. Ikinci el araclar icin kendi guvenceniz acisindan sidddetle onerilir.</p></div>
+    <div class="faq"><h3>Ekspertiz ne kadar surer?</h3><p>Secilen pakete gore 45 dakika ile 2 saat arasinda degisir. DYNO testi ve tam paket yaklasik 90 dakika surer.</p></div>
+    <div class="faq"><h3>Ekspertiz raporu kac gun gecerli?</h3><p>Genellikle 30 gun kabul gorur. Rapor tarihinden sonra araca mudahale edilmis olabileceginden eski raporlara guvenmemeniz onerilir.</p></div>
+    <div class="faq"><h3>Satici ekspertizi reddederse ne yapmali?</h3><p>Ekspertizi reddeden satici ciddi bir uyari isaretidir. Bu durumda alimdan vazgecmeniz en dogru karar olacaktir.</p></div>
+    <div class="faq"><h3>Hangi marka/model icin hangi paket?</h3><p>100.000 TL altı araclar icin Standart, 100-300.000 TL arasi icin Gold/Full, 300.000 TL uzeri ve ithal araclar icin Premium paket onerilir.</p></div>
+    <div class="faq"><h3>Ekspertiz firmasini kim denetliyor?</h3><p>TSE (Turk Standartları Enstitusu) HYB-13805 belgesi veren firmalar denetim altındadır. Ekspertiz yaptirmadan once firmanin TSE belgeli olup olmadigini sorgulayabilirsiniz.</p></div>
+  </div>
+
+</div>
+</body>
+</html>"""
 
 @app.post("/scrape")
 async def trigger_scrape():
