@@ -106,6 +106,27 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #8b5cf6;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#8b5cf6;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#f5f3ff}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
+.cmp-btn{background:#fff;border:2px solid #6366f1;color:#6366f1;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:700;margin-left:auto}
+.cmp-btn:hover{background:#eef2ff}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:16px;width:95%;max-width:900px;max-height:90vh;overflow:auto;padding:24px;position:relative}
+.modal h2{font-size:1.1rem;font-weight:800;margin-bottom:16px;color:#1a1a2e}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#888}
+.sel-pkg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;align-items:flex-end}
+.sel-pkg select{padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:.82rem;outline:none}
+.sel-pkg select:focus{border-color:#6366f1}
+.add-pkg-btn{background:#6366f1;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:600}
+.add-pkg-btn:hover{background:#4f46e5}
+.cmp-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.cmp-table th{background:#1a1a2e;color:#fff;padding:10px 14px;text-align:left;position:relative}
+.cmp-table th .rm{position:absolute;top:6px;right:8px;background:none;border:none;color:#aaa;cursor:pointer;font-size:1rem}
+.cmp-table th .rm:hover{color:#fff}
+.cmp-table td{padding:9px 14px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.cmp-table tr:nth-child(even) td{background:#fafafa}
+.cmp-table .lbl{font-weight:600;color:#555;white-space:nowrap;background:#f8f9fa!important}
+.price-big{font-size:1.1rem;font-weight:800;color:#00a875}
+.empty-cmp{color:#aaa;text-align:center;padding:30px;font-size:.9rem}
 .pg{background:#fff;border:1px solid #ddd;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:.8rem}
 .pg.on{background:#00e5a0;border-color:#00e5a0;color:#000;font-weight:700}
 </style>
@@ -138,6 +159,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
     <button class="sb" id="b2" onclick="sort('rating','b2')">En Yuksek Puan</button>
     <button class="sb" id="b3" onclick="sort('reviews','b3')">En Cok Yorumlanan</button>
     <button class="fiyat-btn" id="bFiyat" onclick="toggleFiyat()">&#128176; Fiyatli Firmalar</button>
+    <button class="cmp-btn" onclick="openCompare()">&#9878; Fiyat Karsilastir</button>
   </div>
   <div class="result-info" id="resultInfo"></div>
   <div id="list"></div>
@@ -314,7 +336,176 @@ function goMap(lat,lng){map.setView([lat,lng],15);window.scrollTo({top:0,behavio
 function yol(lat,lng){window.open(uLat?'https://www.google.com/maps/dir/'+uLat+','+uLng+'/'+lat+','+lng:'https://www.google.com/maps/?q='+lat+','+lng,'_blank');}
 
 initMap();render();
+
+// ============ KARSILASTIRMA MODALI ============
+var CMP_DATA = {
+  "Otorapor": {
+    "website": "https://www.otorapor.com.tr",
+    "phone": "0850 222 68 72",
+    "packages": [
+      {"name":"Kaporta/Boya Paketi","price":4900,"features":["Kaporta Boya Kontrolu","Tramer Sorgusu"]},
+      {"name":"Bronz Paket","price":5500,"features":["Kaporta Boya Kontrolu","Motor Testi","Alt Mekanik","Tramer Sorgusu"]},
+      {"name":"Silver Paket","price":6900,"features":["Bronz + OBD/Beyin Testi","Tramer Sorgusu"]},
+      {"name":"Gold Paket","price":7800,"features":["Silver + DYNO Testi","Fren/Supansiyon","Tramer Sorgusu"]},
+      {"name":"Full Paket","price":9000,"features":["Gold + Ic/Dis Ekspertiz","Conta Kaçak Testi","1 Ay Mekanik Garanti"]},
+      {"name":"Luxury Paket","price":13000,"features":["Full + Airbag Testi","3 Ay Mekanik Garanti"]},
+      {"name":"Premium Paket","price":16000,"features":["Luxury + Elektrikli Arac Paketi"]}
+    ]
+  },
+  "Dynobil": {
+    "website": "https://www.dynobil.com",
+    "phone": "0850 840 92 92",
+    "packages": [
+      {"name":"Standart Paket","price":6500,"features":["Kaporta Boya Kontrolu","Arac Alti Kontrolu","Alt Mekanik","Hasar Kaydi Sorgusu"]},
+      {"name":"Plus Paket","price":8500,"features":["Standart + DYNO Testi","OBD/ECU Kontrol","Fren Testi","Supansiyon Testi"]},
+      {"name":"Pro Paket","price":11500,"features":["Plus + Motor-Sanziman Mekanik","Tam Kapsamli Rapor"]}
+    ]
+  },
+  "AutoKing": {
+    "website": "https://www.autoking.com.tr",
+    "phone": "0850 333 54 64",
+    "packages": [
+      {"name":"Eko Paket","price":5000,"features":["Kaporta Boya Kontrolu","Temel Mekanik"]},
+      {"name":"Standart Paket","price":7500,"features":["Eko + OBD Kontrol","Alt Mekanik","Fren Testi"]},
+      {"name":"Pro Paket","price":10000,"features":["Standart + DYNO Testi","Supansiyon Testi"]},
+      {"name":"King Plus Paket","price":13000,"features":["Pro + Airbag","Garanti"]}
+    ]
+  },
+  "Arabam.com": {
+    "website": "https://www.arabam.com/oto-ekspertiz",
+    "phone": "0850 811 18 18",
+    "packages": [
+      {"name":"Temel Paket","price":5000,"features":["Kaporta Boya","Hasar Sorgusu"]},
+      {"name":"Standart Paket","price":7500,"features":["Temel + Motor","Alt Mekanik","OBD"]},
+      {"name":"Full Paket","price":11000,"features":["Standart + DYNO","Fren/Supansiyon","Garanti"]}
+    ]
+  },
+  "Pilot Garage": {
+    "website": "https://pilotgarage.com",
+    "phone": "0850 303 74 74",
+    "packages": [
+      {"name":"Temel Paket","price":4500,"features":["Kaporta Boya","Temel Kontrol"]},
+      {"name":"Standart Paket","price":7000,"features":["Temel + Motor","Alt Mekanik"]},
+      {"name":"Full Paket","price":10500,"features":["Standart + DYNO","OBD","Fren Testi"]}
+    ]
+  },
+  "Yamanlar": {
+    "website": "https://yamanlarekspertiz.com.tr",
+    "phone": "0232 469 00 00",
+    "packages": [
+      {"name":"Baz Paket","price":5000,"features":["Kaporta Boya","Hasar Sorgusu"]},
+      {"name":"Standart Paket","price":7500,"features":["Baz + Motor","Alt Mekanik","OBD"]},
+      {"name":"Yaman+ Plus","price":11000,"features":["Standart + DYNO","Motor Garanti"]}
+    ]
+  }
+};
+
+var cmpSelected = []; // [{firm, pkg}]
+
+function openCompare(){
+  // Firma dropdown doldur
+  var fs = document.getElementById('cmpFirm');
+  fs.innerHTML = '<option value="">Firma sec...</option>';
+  Object.keys(CMP_DATA).forEach(function(f){ fs.innerHTML += '<option>'+f+'</option>'; });
+  document.getElementById('cmpPkg').innerHTML = '<option value="">Once firma secin...</option>';
+  document.getElementById('cmpModal').className = 'modal-bg open';
+  renderCmpTable();
+}
+
+function closeCompare(){
+  document.getElementById('cmpModal').className = 'modal-bg';
+}
+
+document.getElementById('cmpFirm').addEventListener('change', function(){
+  var firm = this.value;
+  var ps = document.getElementById('cmpPkg');
+  ps.innerHTML = '<option value="">Paket sec...</option>';
+  if(firm && CMP_DATA[firm]){
+    CMP_DATA[firm].packages.forEach(function(p,i){
+      ps.innerHTML += '<option value="'+i+'">'+p.name+' - '+p.price.toLocaleString('tr')+' TL</option>';
+    });
+  }
+});
+
+function addToCompare(){
+  var firm = document.getElementById('cmpFirm').value;
+  var pkgIdx = document.getElementById('cmpPkg').value;
+  if(!firm || pkgIdx==='') return;
+  if(cmpSelected.length >= 5){ alert('En fazla 5 paket karsilastirilabilir!'); return; }
+  // Ayni paketi iki kez ekleme
+  var exists = cmpSelected.some(function(x){ return x.firm===firm && x.pkgIdx==pkgIdx; });
+  if(exists) return;
+  cmpSelected.push({firm:firm, pkgIdx:parseInt(pkgIdx)});
+  renderCmpTable();
+}
+
+function removeCmp(i){
+  cmpSelected.splice(i,1);
+  renderCmpTable();
+}
+
+function renderCmpTable(){
+  var el = document.getElementById('cmpTable');
+  if(cmpSelected.length===0){
+    el.innerHTML = '<p class="empty-cmp">Karsilastirmak istediginiz firma ve paketi secip "+ Ekle" butonuna basin.<br>En fazla 5 paket yan yana karsilastirilabilir.</p>';
+    return;
+  }
+
+  var cols = cmpSelected.map(function(s){ return CMP_DATA[s.firm].packages[s.pkgIdx]; });
+  var firms = cmpSelected.map(function(s){ return s.firm; });
+  var data = cmpSelected.map(function(s){ return CMP_DATA[s.firm]; });
+
+  var h = '<table class="cmp-table"><thead><tr><th style="background:#f8f9fa;color:#555;width:120px">Ozellik</th>';
+  cmpSelected.forEach(function(s,i){
+    var pkg = CMP_DATA[s.firm].packages[s.pkgIdx];
+    h += '<th>'+s.firm+'<br><span style="font-size:.75rem;font-weight:400;color:#aaa">'+pkg.name+'</span><button class="rm" onclick="removeCmp('+i+')">&#10005;</button></th>';
+  });
+  h += '</tr></thead><tbody>';
+
+  // Fiyat satiri
+  h += '<tr><td class="lbl">Fiyat</td>';
+  cols.forEach(function(p){ h += '<td><span class="price-big">'+p.price.toLocaleString('tr')+' TL</span></td>'; });
+  h += '</tr>';
+
+  // Kapsam
+  h += '<tr><td class="lbl">Kapsam</td>';
+  cols.forEach(function(p){
+    h += '<td>'+p.features.map(function(f){ return '&#10003; '+f; }).join('<br>')+'</td>';
+  });
+  h += '</tr>';
+
+  // Telefon
+  h += '<tr><td class="lbl">Telefon</td>';
+  data.forEach(function(d){ h += '<td><a href="tel:'+d.phone+'" style="color:#8b5cf6;font-weight:600">'+d.phone+'</a></td>'; });
+  h += '</tr>';
+
+  // Website
+  h += '<tr><td class="lbl">Website</td>';
+  data.forEach(function(d){ h += '<td><a href="'+d.website+'" target="_blank" style="color:#00a875">Siteye Git &#8599;</a></td>'; });
+  h += '</tr>';
+
+  h += '</tbody></table>';
+  el.innerHTML = h;
+}
+
+// Modal disina tiklaninca kapat
+document.getElementById('cmpModal').addEventListener('click', function(e){
+  if(e.target===this) closeCompare();
+});
 </script>
+<!-- Karsilastirma Modal -->
+<div class="modal-bg" id="cmpModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeCompare()">&#10005;</button>
+    <h2>&#9878; Fiyat Karsilastirma</h2>
+    <div class="sel-pkg">
+      <select id="cmpFirm"><option value="">Firma sec...</option></select>
+      <select id="cmpPkg"><option value="">Paket sec...</option></select>
+      <button class="add-pkg-btn" onclick="addToCompare()">+ Ekle</button>
+    </div>
+    <div id="cmpTable"></div>
+  </div>
+</div>
 </body>
 </html>"""
 
