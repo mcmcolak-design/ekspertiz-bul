@@ -77,6 +77,8 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .sl{color:#888;font-size:.8rem}
 .sb{background:#fff;border:1px solid #ddd;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.78rem}
 .sb.on{border-color:#00e5a0;color:#00a875;background:#f0fff8}
+.fiyat-btn{background:#fff;border:1px solid #ddd;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.78rem;margin-left:auto}
+.fiyat-btn.on{border-color:#f5a623;color:#b36b00;background:#fff8ee}
 .result-info{color:#888;font-size:.82rem;margin-bottom:10px}
 .result-info strong{color:#1a1a2e}
 .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;border:2px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -130,6 +132,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
     <button class="sb on" id="b1" onclick="sort('dist','b1')">En Yakin</button>
     <button class="sb" id="b2" onclick="sort('rating','b2')">En Yuksek Puan</button>
     <button class="sb" id="b3" onclick="sort('reviews','b3')">En Cok Yorumlanan</button>
+    <button class="fiyat-btn" id="bFiyat" onclick="toggleFiyat()">&#128176; Fiyatli Firmalar</button>
   </div>
   <div class="result-info" id="resultInfo"></div>
   <div id="list"></div>
@@ -141,6 +144,7 @@ var PRICES=PRICES_PLACEHOLDER;
 var uLat=null,uLng=null,map=null,um=null,srt='dist';
 var filtered=ALL_FIRMS;
 var page=1,perPage=20;
+var onlyFiyatli=false;
 
 document.getElementById('firmCount').textContent=ALL_FIRMS.length.toLocaleString('tr');
 
@@ -178,6 +182,14 @@ function onIlChange(){
   applyFilters();
 }
 
+function toggleFiyat(){
+  onlyFiyatli=!onlyFiyatli;
+  var btn=document.getElementById('bFiyat');
+  btn.className='fiyat-btn'+(onlyFiyatli?' on':'');
+  btn.innerHTML=onlyFiyatli?'&#128176; Tum Firmalar':'&#128176; Fiyatli Firmalar';
+  applyFilters();
+}
+
 function applyFilters(){
   var q=document.getElementById('searchInput').value.toLowerCase().trim();
   var il=document.getElementById('ilSelect').value;
@@ -186,7 +198,8 @@ function applyFilters(){
     var matchQ=!q||(f.name&&f.name.toLowerCase().includes(q))||(f.address&&f.address.toLowerCase().includes(q));
     var matchIl=!il||f.city===il;
     var matchIlce=!ilce||(f.address&&f.address.includes(ilce));
-    return matchQ&&matchIl&&matchIlce;
+    var matchFiyat=!onlyFiyatli||(PRICES[f.id]&&PRICES[f.id].length>0);
+    return matchQ&&matchIl&&matchIlce&&matchFiyat;
   });
   page=1;render();
 }
