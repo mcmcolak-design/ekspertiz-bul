@@ -110,6 +110,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 <header>
   <h1>Ekspertiz<em>Bul</em></h1>
   <p>Turkiye'nin En Buyuk Oto Ekspertiz Platformu</p>
+  <p style="margin-top:6px;font-size:.75rem;color:#888">Iletisim: <a href="mailto:mcolakai@gmail.com" style="color:#00e5a0;text-decoration:none">mcolakai@gmail.com</a></p>
   <div class="stats">
     <div class="stat"><div class="stat-n" id="firmCount">0</div><div class="stat-l">Firma</div></div>
     <div class="stat"><div class="stat-n">81</div><div class="stat-l">Il</div></div>
