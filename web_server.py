@@ -178,6 +178,31 @@ var filtered=ALL_FIRMS;
 var page=1,perPage=20;
 var onlyFiyatli=false;
 
+var TERMS = {
+  'DYNO': 'Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer. Gizli motor sorunlarini ortaya cikarir.',
+  'Dinamometre': 'Motorun gercek performansini olcen cihaz. Beygir gucu, tork ve aktarma organi kayiplarini gosterir.',
+  'OBD': 'Aracin elektronik beyin unitesine baglanan teshis sistemi. Ariza kodlari ve silinen hata kayitlarini okur.',
+  'ECU': 'Aracin ana bilgisayari. Motor, sanziman ve diger sistemleri kontrol eder.',
+  'Tramer': 'Trafik Hasar Merkezi kaydi. Aracin sigortali kazalarda olusturdugu hasar tutarini gosteren resmi kayit.',
+  'Kaporta': 'Aracin dis metal govdesi. Degistirilmis veya boyatilmis parcalari tespit eder.',
+  'Sase': 'Aracin ana metal iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.',
+  'Conta': 'Motor parcalari arasindaki sizdirmazlik elemani. Conta kacagi motor hasarinin habercisidir.',
+  'Supansiyon': 'Aracin yol tutus sistemini olusturan parcalar. Amortisör, yay ve baglanti elemanlarini icerir.',
+  'ABS': 'Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.',
+  'ESP': 'Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.',
+  'Airbag': 'Kaza aninda surucu ve yolcuyu koruyan hava yastigi. Patlamis airbag tehlikelidir.',
+  'Mekanik Garanti': 'Ekspertizden sonra belirlenen sure icerisinde cikan mekanik arizalarin firma tarafindan karsilanmasi.',
+};
+
+function wrapTerms(text){
+  if(!text) return text;
+  Object.keys(TERMS).forEach(function(term){
+    var re = new RegExp('\\b'+term+'\\b','g');
+    text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
+  });
+  return text;
+}
+
 document.getElementById('firmCount').textContent=ALL_FIRMS.length.toLocaleString('tr');
 
 // IL/ILCE dropdown olustur
@@ -546,14 +571,7 @@ document.addEventListener('mouseout', function(e){
   if(e.target.closest('.tip')) hideTip();
 });
 
-// CMP tablosunda terimleri tip'e cevir
-function wrapTerms(text){
-  Object.keys(TERMS).forEach(function(term){
-    var re = new RegExp('\\b'+term+'\\b','g');
-    text = text.replace(re, '<span class="tip" data-term="'+term+'">'+term+'</span>');
-  });
-  return text;
-}
+// wrapTerms yukarda tanimlandi
 </script>
 <!-- Tooltip -->
 <div class="tipbox" id="tipbox"></div>
