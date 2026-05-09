@@ -416,8 +416,8 @@ function closeCompare(){
   document.getElementById('cmpModal').className = 'modal-bg';
 }
 
-document.getElementById('cmpFirm').addEventListener('change', function(){
-  var firm = this.value;
+function onCmpFirmChange(){
+  var firm = document.getElementById('cmpFirm').value;
   var ps = document.getElementById('cmpPkg');
   ps.innerHTML = '<option value="">Paket sec...</option>';
   if(firm && CMP_DATA[firm]){
@@ -425,7 +425,7 @@ document.getElementById('cmpFirm').addEventListener('change', function(){
       ps.innerHTML += '<option value="'+i+'">'+p.name+' - '+p.price.toLocaleString('tr')+' TL</option>';
     });
   }
-});
+}
 
 function addToCompare(){
   var firm = document.getElementById('cmpFirm').value;
@@ -499,7 +499,7 @@ document.getElementById('cmpModal').addEventListener('click', function(e){
     <button class="modal-close" onclick="closeCompare()">&#10005;</button>
     <h2>&#9878; Fiyat Karsilastirma</h2>
     <div class="sel-pkg">
-      <select id="cmpFirm"><option value="">Firma sec...</option></select>
+      <select id="cmpFirm" onchange="onCmpFirmChange()"><option value="">Firma sec...</option></select>
       <select id="cmpPkg"><option value="">Paket sec...</option></select>
       <button class="add-pkg-btn" onclick="addToCompare()">+ Ekle</button>
     </div>
