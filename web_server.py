@@ -217,11 +217,14 @@ function showTermPopup(idx){
 function wrapTerms(text){
   if(!text)return text;
   var keys=Object.keys(TERMS);
-  keys.forEach(function(key,i){
+  keys.forEach(function(key,idx){
     var display=key.replace(/_SLASH_/g,'/');
-    var pos=text.indexOf(display);
-    if(pos!==-1){
-      text=text.substring(0,pos)+'<span class=\'tip\' onclick=\'showTermPopup('+i+')\'>'+display+'</span>'+text.substring(pos+display.length);
+    var i=text.indexOf(display);
+    if(i!==-1){
+      var before=text.substring(0,i);
+      var after=text.substring(i+display.length);
+      var title=TERMS[key].replace(/"/g,'&quot;');
+      text=before+'<span class="tip" title="'+title+'" onclick="showTermPopup('+idx+')">'+display+'</span>'+after;
     }
   });
   return text;
