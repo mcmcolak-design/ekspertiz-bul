@@ -206,13 +206,11 @@ var TERMS = {};
 function wrapTerms(text){
   if(!text) return text;
   Object.keys(TERMS).forEach(function(key){
-    // _SLASH_ olan keyler icin gercek gorunum ile eslestir
-    var display = key.replace(/_SLASH_/g, '/');
-    var escaped = display.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&');
-    try {
-      var re = new RegExp(escaped, 'g');
-      text = text.replace(re, '<span class="tip" data-tkey="'+encodeURIComponent(key)+'">'+display+'</span>');
-    } catch(e) {}
+    var display = key.replace(/_SLASH_/g,'/');
+    var idx = text.indexOf(display);
+    if(idx !== -1){
+      text = text.substring(0,idx)+'<span class="tip" data-tkey="'+encodeURIComponent(key)+'">'+display+'</span>'+text.substring(idx+display.length);
+    }
   });
   return text;
 }
@@ -295,7 +293,10 @@ function getLoc(){
     var ic=L.divIcon({html:'<div style="width:12px;height:12px;background:#e53535;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px #e53535"></div>',iconSize:[12,12],iconAnchor:[6,6]});
     um=L.marker([uLat,uLng],{icon:ic}).addTo(map).bindPopup('Siz').openPopup();
     page=1;render();
-  },function(){document.getElementById('loctxt').textContent='Konum alinamadi - izin verin';});
+  },function(err){
+    var msgs={1:'Konum izni reddedildi - telefon ayarlarindan izin verin',2:'Konum alinamadi - GPS acik mi?',3:'Zaman asimi - tekrar deneyin'};
+    document.getElementById('loctxt').textContent=msgs[err.code]||'Konum alinamadi ('+err.code+')';
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
 }
 
 function dist(a,b,c,d){
@@ -576,7 +577,11 @@ function hideTip(){ tipEl.style.display='none'; }
 // Sayfa icindeki .tip elemanlarına event ekle
 document.addEventListener('mouseover', function(e){
   var t = e.target.closest('.tip');
-  if(t){ var key=decodeURIComponent(t.dataset.tkey||''); showTip(e, key); }
+  if(t){
+    var raw=t.getAttribute('data-tkey')||'';
+    var key=decodeURIComponent(raw);
+    if(TERMS[key]) showTip(e, key);
+  }
 });
 document.addEventListener('mousemove', function(e){
   if(tipEl.style.display==='block') moveTip(e);
