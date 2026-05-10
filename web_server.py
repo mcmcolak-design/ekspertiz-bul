@@ -106,10 +106,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #c41c1c;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#c41c1c;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#fff0f0}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
-.tip{border-bottom:1px dashed #c41c1c;color:inherit;font-weight:600;cursor:pointer}
-.tip-popup{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:.82rem;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);text-align:center}
-.tip-popup.show{display:block}
-.tip-popup-close{display:block;margin-top:8px;font-size:.75rem;color:#ffaaaa;cursor:pointer}
+.tip{border-bottom:1px dashed #c41c1c;cursor:help;color:inherit;font-weight:600}
 .tipbox{position:fixed;background:#1a0000;color:#fff;padding:8px 12px;border-radius:8px;font-size:.78rem;max-width:220px;line-height:1.5;z-index:9999;pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .tipbox::after{content:'';position:absolute;bottom:-6px;left:14px;border:6px solid transparent;border-bottom:none;border-top-color:#1a0000}
 .rehber-link{display:inline-block;background:#fff0f0;border:1px solid #e53535;color:#c41c1c;padding:4px 10px;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;margin-left:6px}
@@ -206,23 +203,16 @@ var TERMS = {};
   list.forEach(function(t){ TERMS[t[0]]=t[1]; });
 })();
 
-function showTermPopup(idx){
-  var keys=Object.keys(TERMS);
-  var key=keys[idx];
-  if(!key||!TERMS[key])return;
-  var term=key.replace(/_SLASH_/g,'/');
-  document.getElementById('tipPopupText').innerHTML='<b>'+term+'</b><br>'+TERMS[key];
-  document.getElementById('tipPopup').className='tip-popup show';
-}
 function wrapTerms(text){
-  if(!text)return text;
-  var keys=Object.keys(TERMS);
-  keys.forEach(function(key,i){
-    var display=key.replace(/_SLASH_/g,'/');
-    var pos=text.indexOf(display);
-    if(pos!==-1){
-      text=text.substring(0,pos)+'<span class=\'tip\' onclick=\'showTermPopup('+i+')\'>'+display+'</span>'+text.substring(pos+display.length);
-    }
+  if(!text) return text;
+  Object.keys(TERMS).forEach(function(key){
+    // _SLASH_ olan keyler icin gercek gorunum ile eslestir
+    var display = key.replace(/_SLASH_/g, '/');
+    var escaped = display.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&');
+    try {
+      var re = new RegExp(escaped, 'g');
+      text = text.replace(re, '<span class="tip" data-tkey="'+encodeURIComponent(key)+'">'+display+'</span>');
+    } catch(e) {}
   });
   return text;
 }
@@ -305,10 +295,7 @@ function getLoc(){
     var ic=L.divIcon({html:'<div style="width:12px;height:12px;background:#e53535;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px #e53535"></div>',iconSize:[12,12],iconAnchor:[6,6]});
     um=L.marker([uLat,uLng],{icon:ic}).addTo(map).bindPopup('Siz').openPopup();
     page=1;render();
-  },function(err){
-    var msgs={1:'Konum izni reddedildi - telefon ayarlarindan izin verin',2:'Konum alinamadi - GPS acik mi?',3:'Zaman asimi - tekrar deneyin'};
-    document.getElementById('loctxt').textContent=msgs[err.code]||'Konum alinamadi ('+err.code+')';
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+  },function(){document.getElementById('loctxt').textContent='Konum alinamadi - izin verin';});
 }
 
 function dist(a,b,c,d){
@@ -586,14 +573,10 @@ function moveTip(e){
 }
 function hideTip(){ tipEl.style.display='none'; }
 
-// Desktop: hover tooltip
+// Sayfa icindeki .tip elemanlarına event ekle
 document.addEventListener('mouseover', function(e){
   var t = e.target.closest('.tip');
-  if(t){
-    var raw=t.getAttribute('data-tkey')||'';
-    var key=decodeURIComponent(raw);
-    if(TERMS[key]) showTip(e, key);
-  }
+  if(t){ var key=decodeURIComponent(t.dataset.tkey||''); showTip(e, key); }
 });
 document.addEventListener('mousemove', function(e){
   if(tipEl.style.display==='block') moveTip(e);
@@ -602,30 +585,10 @@ document.addEventListener('mouseout', function(e){
   if(e.target.closest('.tip')) hideTip();
 });
 
-// Mobil: tikla popup ac
-function closeTipPopup(){ document.getElementById('tipPopup').className='tip-popup'; }
-document.addEventListener('click', function(e){
-  var t = e.target.closest('.tip');
-  if(t){
-    var raw=t.getAttribute('data-tkey')||'';
-    var key=decodeURIComponent(raw);
-    var term = key.replace(/_SLASH_/g,'/');
-    var desc = TERMS[key];
-    if(!desc) return;
-    // Mobilde popup, masaustunde de goster
-    tipPopupTextEl.innerHTML = '<b>'+term+'</b><br>'+desc;
-    document.getElementById('tipPopup').className='tip-popup show';
-    e.stopPropagation();
-  } else if(!e.target.closest('#tipPopup')){
-    closeTipPopup();
-  }
-});
-
 // wrapTerms yukarda tanimlandi
 </script>
 <!-- Tooltip -->
 <div class="tipbox" id="tipbox"></div>
-<div class="tip-popup" id="tipPopup"><span id="tipPopupText"></span><span class="tip-popup-close" onclick="closeTipPopup()">Kapat &#10005;</span></div>
 
 <!-- Karsilastirma Modal -->
 <div class="modal-bg" id="cmpModal">
