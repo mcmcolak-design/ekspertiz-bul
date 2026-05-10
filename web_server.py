@@ -207,9 +207,10 @@ function wrapTerms(text){
   if(!text) return text;
   Object.keys(TERMS).forEach(function(key){
     var display = key.replace(/_SLASH_/g,'/');
+    var desc = TERMS[key];
     var idx = text.indexOf(display);
     if(idx !== -1){
-      text = text.substring(0,idx)+'<span class="tip" data-tkey="'+encodeURIComponent(key)+'">'+display+'</span>'+text.substring(idx+display.length);
+      text = text.substring(0,idx)+'<span class="tip" title="'+desc.replace(/"/g,"&quot;")+'">'+display+'</span>'+text.substring(idx+display.length);
     }
   });
   return text;
