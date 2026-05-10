@@ -106,7 +106,10 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #c41c1c;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#c41c1c;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#fff0f0}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
-.tip{border-bottom:1px dashed #c41c1c;color:inherit;font-weight:600}
+.tip{border-bottom:1px dashed #c41c1c;color:inherit;font-weight:600;cursor:pointer}
+.tip-popup{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:.82rem;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);text-align:center}
+.tip-popup.show{display:block}
+.tip-popup-close{display:block;margin-top:8px;font-size:.75rem;color:#ffaaaa;cursor:pointer}
 .tipbox{position:fixed;background:#1a0000;color:#fff;padding:8px 12px;border-radius:8px;font-size:.78rem;max-width:220px;line-height:1.5;z-index:9999;pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .tipbox::after{content:'';position:absolute;bottom:-6px;left:14px;border:6px solid transparent;border-bottom:none;border-top-color:#1a0000}
 .rehber-link{display:inline-block;background:#fff0f0;border:1px solid #e53535;color:#c41c1c;padding:4px 10px;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;margin-left:6px}
@@ -575,7 +578,7 @@ function moveTip(e){
 }
 function hideTip(){ tipEl.style.display='none'; }
 
-// Sayfa icindeki .tip elemanlarına event ekle
+// Desktop: hover tooltip
 document.addEventListener('mouseover', function(e){
   var t = e.target.closest('.tip');
   if(t){
@@ -591,10 +594,32 @@ document.addEventListener('mouseout', function(e){
   if(e.target.closest('.tip')) hideTip();
 });
 
+// Mobil: tikla popup ac
+var tipPopupEl = document.getElementById('tipPopup');
+var tipPopupTextEl = document.getElementById('tipPopupText');
+function closeTipPopup(){ tipPopupEl.className='tip-popup'; }
+document.addEventListener('click', function(e){
+  var t = e.target.closest('.tip');
+  if(t){
+    var raw=t.getAttribute('data-tkey')||'';
+    var key=decodeURIComponent(raw);
+    var term = key.replace(/_SLASH_/g,'/');
+    var desc = TERMS[key];
+    if(!desc) return;
+    // Mobilde popup, masaustunde de goster
+    tipPopupTextEl.innerHTML = '<b>'+term+'</b><br>'+desc;
+    tipPopupEl.className='tip-popup show';
+    e.stopPropagation();
+  } else if(!e.target.closest('#tipPopup')){
+    closeTipPopup();
+  }
+});
+
 // wrapTerms yukarda tanimlandi
 </script>
 <!-- Tooltip -->
 <div class="tipbox" id="tipbox"></div>
+<div class="tip-popup" id="tipPopup"><span id="tipPopupText"></span><span class="tip-popup-close" onclick="closeTipPopup()">Kapat &#10005;</span></div>
 
 <!-- Karsilastirma Modal -->
 <div class="modal-bg" id="cmpModal">
