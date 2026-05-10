@@ -106,7 +106,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #c41c1c;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#c41c1c;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#fff0f0}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
-.tip{border-bottom:1px dashed #c41c1c;cursor:help;color:inherit;font-weight:600}
+.tip{border-bottom:1px dashed #c41c1c;color:inherit;font-weight:600}
 .tipbox{position:fixed;background:#1a0000;color:#fff;padding:8px 12px;border-radius:8px;font-size:.78rem;max-width:220px;line-height:1.5;z-index:9999;pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .tipbox::after{content:'';position:absolute;bottom:-6px;left:14px;border:6px solid transparent;border-bottom:none;border-top-color:#1a0000}
 .rehber-link{display:inline-block;background:#fff0f0;border:1px solid #e53535;color:#c41c1c;padding:4px 10px;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;margin-left:6px}
