@@ -334,7 +334,7 @@ function render(){
     // FIX: Fiyat
     var pk='';
     if(f.pkgs&&f.pkgs.length>0){
-      f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+wrapTerms(p.name)+'</div><div class="pp">'+p.price+' TL</div></div>';});
+      f.pkgs.slice(0,2).forEach(function(p){pk+='<div class="pk"><div class="pn">'+p.name+'</div><div class="pp">'+p.price+' TL</div></div>';});
     } else {
       pk='<div class="pk noprice"><div class="pn">Fiyat</div><div class="pp gray">Bilgi yok</div></div>';
     }
@@ -516,7 +516,7 @@ function renderCmpTable(){
   // Kapsam
   h += '<tr><td class="lbl">Kapsam</td>';
   cols.forEach(function(p){
-    h += '<td>'+p.features.map(function(f){ return '&#10003; '+wrapTerms(f); }).join('<br>')+'</td>';
+    h += '<td>'+p.features.map(function(f){ return '&#10003; '+f; }).join('<br>')+'</td>';
   });
   h += '</tr>';
 
@@ -610,7 +610,6 @@ document.addEventListener('click', function(e){
   }
 });
 
-// wrapTerms yukarda tanimlandi
 </script>
 <!-- Tooltip -->
 <div class="tipbox" id="tipbox"></div>
