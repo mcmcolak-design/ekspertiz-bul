@@ -211,20 +211,17 @@ function showTermPopup(idx){
   var key=keys[idx];
   if(!key||!TERMS[key])return;
   var term=key.replace(/_SLASH_/g,'/');
-  tipPopupTextEl.innerHTML='<b>'+term+'</b><br>'+TERMS[key];
-  tipPopupEl.className='tip-popup show';
+  document.getElementById('tipPopupText').innerHTML='<b>'+term+'</b><br>'+TERMS[key];
+  document.getElementById('tipPopup').className='tip-popup show';
 }
 function wrapTerms(text){
   if(!text)return text;
   var keys=Object.keys(TERMS);
-  keys.forEach(function(key,idx){
+  keys.forEach(function(key,i){
     var display=key.replace(/_SLASH_/g,'/');
-    var i=text.indexOf(display);
-    if(i!==-1){
-      var before=text.substring(0,i);
-      var after=text.substring(i+display.length);
-      var title=TERMS[key].replace(/"/g,'&quot;');
-      text=before+'<span class="tip" title="'+title+'" onclick="showTermPopup('+idx+')">'+display+'</span>'+after;
+    var pos=text.indexOf(display);
+    if(pos!==-1){
+      text=text.substring(0,pos)+'<span class=\'tip\' onclick=\'showTermPopup('+i+')\'>'+display+'</span>'+text.substring(pos+display.length);
     }
   });
   return text;
@@ -606,9 +603,7 @@ document.addEventListener('mouseout', function(e){
 });
 
 // Mobil: tikla popup ac
-var tipPopupEl = document.getElementById('tipPopup');
-var tipPopupTextEl = document.getElementById('tipPopupText');
-function closeTipPopup(){ tipPopupEl.className='tip-popup'; }
+function closeTipPopup(){ document.getElementById('tipPopup').className='tip-popup'; }
 document.addEventListener('click', function(e){
   var t = e.target.closest('.tip');
   if(t){
@@ -619,7 +614,7 @@ document.addEventListener('click', function(e){
     if(!desc) return;
     // Mobilde popup, masaustunde de goster
     tipPopupTextEl.innerHTML = '<b>'+term+'</b><br>'+desc;
-    tipPopupEl.className='tip-popup show';
+    document.getElementById('tipPopup').className='tip-popup show';
     e.stopPropagation();
   } else if(!e.target.closest('#tipPopup')){
     closeTipPopup();
