@@ -206,22 +206,22 @@ var TERMS = {};
   list.forEach(function(t){ TERMS[t[0]]=t[1]; });
 })();
 
-function showTermPopup(key){
-  var term = key.replace(/_SLASH_/g,'/');
-  var desc = TERMS[key];
-  if(!desc) return;
-  tipPopupTextEl.innerHTML = '<b>'+term+'</b><br>'+desc;
+function showTermPopup(idx){
+  var keys=Object.keys(TERMS);
+  var key=keys[idx];
+  if(!key||!TERMS[key])return;
+  var term=key.replace(/_SLASH_/g,'/');
+  tipPopupTextEl.innerHTML='<b>'+term+'</b><br>'+TERMS[key];
   tipPopupEl.className='tip-popup show';
 }
 function wrapTerms(text){
-  if(!text) return text;
-  Object.keys(TERMS).forEach(function(key){
-    var display = key.replace(/_SLASH_/g,'/');
-    var desc = TERMS[key];
-    var idx = text.indexOf(display);
-    if(idx !== -1){
-      var safeKey = key.replace(/'/g,'\\'+'');
-      text = text.substring(0,idx)+'<span class="tip" title="'+desc.replace(/"/g,'&quot;')+'" onclick="showTermPopup(\''+safeKey+'\')">'+display+'</span>'+text.substring(idx+display.length);
+  if(!text)return text;
+  var keys=Object.keys(TERMS);
+  keys.forEach(function(key,i){
+    var display=key.replace(/_SLASH_/g,'/');
+    var pos=text.indexOf(display);
+    if(pos!==-1){
+      text=text.substring(0,pos)+'<span class=\'tip\' onclick=\'showTermPopup('+i+')\'>'+display+'</span>'+text.substring(pos+display.length);
     }
   });
   return text;
