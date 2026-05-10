@@ -106,7 +106,6 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 .aw-tel{background:#fff;border:2px solid #c41c1c;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:.82rem;color:#c41c1c;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .aw-tel:hover{background:#fff0f0}
 .pagination{display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;padding-bottom:30px}
-.tip{border-bottom:1px dashed #c41c1c;color:inherit;font-weight:600;cursor:pointer}
 .tip-popup{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:.82rem;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);text-align:center}
 .tip-popup.show{display:block}
 .tip-popup-close{display:block;margin-top:8px;font-size:.75rem;color:#ffaaaa;cursor:pointer}
@@ -214,18 +213,7 @@ function showTermPopup(idx){
   document.getElementById('tipPopupText').innerHTML='<b>'+term+'</b><br>'+TERMS[key];
   document.getElementById('tipPopup').className='tip-popup show';
 }
-function wrapTerms(text){
-  if(!text)return text;
-  var keys=Object.keys(TERMS);
-  keys.forEach(function(key,i){
-    var display=key.replace(/_SLASH_/g,'/');
-    var pos=text.indexOf(display);
-    if(pos!==-1){
-      text=text.substring(0,pos)+'<span class=\'tip\' onclick=\'showTermPopup('+i+')\'>'+display+'</span>'+text.substring(pos+display.length);
-    }
-  });
-  return text;
-}
+
 
 document.getElementById('firmCount').textContent=ALL_FIRMS.length.toLocaleString('tr');
 
@@ -394,44 +382,6 @@ function yol(lat,lng){window.open(uLat?'https://www.google.com/maps/dir/'+uLat+'
 
 initMap();render();
 
-var TERMS={
-'DYNO':'Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer. Gizli motor sorunlarini ortaya cikarir.',
-'OBD':'Aracin elektronik beyin teshis sistemi. Ariza kodlari ve silinen hatalari okur.',
-'Tramer':'Trafik Hasar Merkezi kaydi. Aracin resmi kaza ve hasar gecmisi.',
-'Kaporta':'Aracin dis metal govdesi. Boya kalinligi olculerek degisik parca tespit edilir.',
-'Sase':'Aracin ana metal iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.',
-'Conta':'Motor parcalari arasindaki sizdirmazlik elemani. Kacak motor hasarinin habercisi.',
-'Supansiyon':'Aracin yol tutus sistemi. Amortisor yay ve baglanti elemanlarini icerir.',
-'ABS':'Fren sirasinda tekerleklerin kilitlenmesini onleyen guvenlik sistemi.',
-'ESP':'Aracin kontrolden cikmamasi icin devreye giren elektronik denge sistemi.',
-'Airbag':'Kaza aninda surucu ve yolcuyu koruyan hava yastigi. Patlamis airbag tehlikelidir.',
-'Alt Mekanik':'Aracin alt kismi: rot rotil sanziman diferansiyel ve aks kontrolleri.',
-'Mekanik Garanti':'Ekspertiz sonrasi belirlenen sure icerisinde cikan arizalarin karsilanmasi.'
-};
-function wrapTerms(text){
-  if(!text)return text;
-  var keys=Object.keys(TERMS);
-  keys.forEach(function(key,i){
-    var pos=text.indexOf(key);
-    if(pos!==-1){
-      text=text.substring(0,pos)+'<span class="tip" onclick="showTerm('+i+')">'+key+'</span>'+text.substring(pos+key.length);
-    }
-  });
-  return text;
-}
-function showTerm(i){
-  var keys=Object.keys(TERMS);
-  var k=keys[i];
-  if(!k)return;
-  var el=document.getElementById('tpop');
-  el.innerHTML='<b>'+k+'</b><br>'+TERMS[k]+'<br><span onclick="document.getElementById('tpop').style.display='none'" style="color:#ffaaaa;cursor:pointer;font-size:.75rem">Kapat ✕</span>';
-  el.style.display='block';
-}
-document.addEventListener('click',function(e){
-  if(!e.target.closest('#tpop')&&!e.target.closest('.tip')){
-    document.getElementById('tpop').style.display='none';
-  }
-});
 
 // ============ KARSILASTIRMA MODALI ============
 var CMP_DATA = {
@@ -666,8 +616,6 @@ document.addEventListener('click', function(e){
 <div class="tipbox" id="tipbox"></div>
 <div class="tip-popup" id="tipPopup"><span id="tipPopupText"></span><span class="tip-popup-close" onclick="closeTipPopup()">Kapat &#10005;</span></div>
 
-<div id="tpop" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:.84rem;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center"></div>
-
 <!-- Karsilastirma Modal -->
 <div class="modal-bg" id="cmpModal">
   <div class="modal">
@@ -691,6 +639,16 @@ def index():
     firms_json = json.dumps(firms, ensure_ascii=False)
     prices_json = json.dumps(prices, ensure_ascii=False)
     html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
+    html = html.replace("</body></html>", """
+<style>.tip2{border-bottom:1px dashed #c41c1c;cursor:pointer;font-weight:600}</style>
+<div id="tpop2" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center"></div>
+<script>
+var TR={"DYNO":"Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer.","OBD":"Aracin elektronik beyin teshis sistemi. Ariza kodlarini okur.","Tramer":"Resmi kaza ve hasar gecmisi kaydi.","Kaporta":"Aracin dis metal govdesi. Boya kalinligi olculerek degisik parca tespit edilir.","Sase":"Aracin ana iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.","Conta":"Motor sizdirmazlik elemani. Kacak motor hasarinin habercisi.","Supansiyon":"Yol tutus sistemi. Amortisor ve baglanti elemanlari.","ABS":"Frende tekerleklerin kilitlenmesini onler.","ESP":"Elektronik denge sistemi. Aracin kontrolden cikmamasi icin.","Airbag":"Kaza aninda koruyucu hava yastigi. Patlamis airbag tehlikelidir."};
+var TRK=Object.keys(TR);
+function st(i){var el=document.getElementById("tpop2");el.innerHTML="<b>"+TRK[i]+"</b><br>"+TR[TRK[i]]+"<br><span onclick=\"document.getElementById(\\"tpop2\\").style.display=\\"none\\"\">&#10005; Kapat</span>";el.style.display="block";}
+document.addEventListener("click",function(e){if(!e.target.closest("#tpop2")&&!e.target.closest(".tip2"))document.getElementById("tpop2").style.display="none";});
+</script>
+</body></html>""")
     return html
 
 @app.get("/rehber", response_class=HTMLResponse)
