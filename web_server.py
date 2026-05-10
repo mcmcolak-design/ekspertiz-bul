@@ -206,6 +206,13 @@ var TERMS = {};
   list.forEach(function(t){ TERMS[t[0]]=t[1]; });
 })();
 
+function showTermPopup(key){
+  var term = key.replace(/_SLASH_/g,'/');
+  var desc = TERMS[key];
+  if(!desc) return;
+  tipPopupTextEl.innerHTML = '<b>'+term+'</b><br>'+desc;
+  tipPopupEl.className='tip-popup show';
+}
 function wrapTerms(text){
   if(!text) return text;
   Object.keys(TERMS).forEach(function(key){
@@ -213,7 +220,8 @@ function wrapTerms(text){
     var desc = TERMS[key];
     var idx = text.indexOf(display);
     if(idx !== -1){
-      text = text.substring(0,idx)+'<span class="tip" title="'+desc.replace(/"/g,"&quot;")+'">'+display+'</span>'+text.substring(idx+display.length);
+      var safeKey = key.replace(/'/g,'\\'+'');
+      text = text.substring(0,idx)+'<span class="tip" title="'+desc.replace(/"/g,'&quot;')+'" onclick="showTermPopup(\''+safeKey+'\')">'+display+'</span>'+text.substring(idx+display.length);
     }
   });
   return text;
