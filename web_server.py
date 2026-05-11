@@ -1556,6 +1556,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
           <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Telefon</td><td>{firm['telefon']}</td></tr>
           <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Email</td><td>{firm['email']}</td></tr>
         </table>
+        <a href='/firma/profil' class='btn-outline' style='display:inline-block;margin-top:14px;font-size:.8rem'>&#9998; Profili Duzenle</a>
       </div>
     </div>
 
@@ -1696,3 +1697,113 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
     body += "</body></html>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
+
+
+@app.get("/kullanici/profil", response_class=HTMLResponse)
+def kullanici_profil(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE id=%s", (s["user_id"],))
+    user = cur.fetchone()
+    cur.close(); conn.close()
+    body = _base_style() + "<body>" + _topbar("Profilim", "/kullanici/panel", "Panelim")
+    body += "<div class='wrap' style='max-width:500px'><div class='card'><h2>&#128100; Profil Bilgileri</h2>"
+    body += "<div id='msg'></div>"
+    body += "<div class='form-group'><label>Ad Soyad</label><input type='text' id='ad_soyad' value='" + (user["ad_soyad"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Email</label><input type='email' id='email' value='" + (user["email"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Telefon</label><input type='tel' id='telefon' value='" + (user["telefon"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Yeni Sifre (bos birakin degistirmek istemiyorsaniz)</label><input type='password' id='sifre' placeholder='Yeni sifre'></div>"
+    body += "<button class='btn' style='width:100%' onclick='guncelle()'>Guncelle</button></div></div>"
+    body += "<script>function guncelle(){var fd=new FormData();fd.append('ad_soyad',document.getElementById('ad_soyad').value);fd.append('email',document.getElementById('email').value);fd.append('telefon',document.getElementById('telefon').value);fd.append('sifre',document.getElementById('sifre').value);fetch('/kullanici/profil/guncelle',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Bilgileriniz guncellendi!</div>';}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "</body></html>"
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Profilim</title>" + body)
+
+@app.post("/kullanici/profil/guncelle")
+async def kullanici_profil_guncelle(
+    ad_soyad: str = Form(...),
+    email: str = Form(...),
+    telefon: str = Form(default=""),
+    sifre: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if sifre:
+        cur.execute("UPDATE users SET ad_soyad=%s, email=%s, telefon=%s, sifre_hash=%s WHERE id=%s",
+                    (ad_soyad, email, telefon, hash_password(sifre), s["user_id"]))
+    else:
+        cur.execute("UPDATE users SET ad_soyad=%s, email=%s, telefon=%s WHERE id=%s",
+                    (ad_soyad, email, telefon, s["user_id"]))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+
+@app.get("/firma/profil", response_class=HTMLResponse)
+def firma_profil(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (s["firm_id"],))
+    firm = cur.fetchone()
+    cur.close(); conn.close()
+    iller = ["Adana","Adiyaman","Afyonkarahisar","Agri","Amasya","Ankara","Antalya","Artvin","Aydin","Balikesir","Bilecik","Bingol","Bitlis","Bolu","Burdur","Bursa","Canakkale","Cankiri","Corum","Denizli","Diyarbakir","Edirne","Elazig","Erzincan","Erzurum","Eskisehir","Gaziantep","Giresun","Gumushane","Hakkari","Hatay","Isparta","Mersin","Istanbul","Izmir","Kars","Kastamonu","Kayseri","Kirklareli","Kirsehir","Kocaeli","Konya","Kutahya","Malatya","Manisa","Kahramanmaras","Mardin","Mugla","Mus","Nevsehir","Nigde","Ordu","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Tekirdag","Tokat","Trabzon","Tunceli","Sanliurfa","Usak","Van","Yozgat","Zonguldak","Aksaray","Bayburt","Karaman","Kirikkale","Batman","Sirnak","Bartin","Ardahan","Igdir","Yalova","Karabuk","Kilis","Osmaniye","Duzce"]
+    il_opts = "".join([f"<option value='{il}'" + (" selected" if firm.get('il')==il else "") + f">{il}</option>" for il in sorted(iller)])
+    gorevler = ["Is Yeri Sahibi","Mudur","Yetkili Personel","Sube Muduru","Diger"]
+    gorev_opts = "".join([f"<option value='{g}'" + (" selected" if firm.get('yetkili_gorev')==g else "") + f">{g}</option>" for g in gorevler])
+    body = _base_style() + "<body>" + _topbar("Firma Profili", "/firma/panel", "Panelim")
+    body += "<div class='wrap' style='max-width:560px'><div class='card'><h2>&#127970; Firma Bilgileri</h2>"
+    body += "<div id='msg'></div>"
+    body += "<div class='form-group'><label>Firma Unvani</label><input type='text' id='unvan' value='" + (firm["unvan"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Yetkili Ad Soyad</label><input type='text' id='yetkili_ad' value='" + (firm["yetkili_ad"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Gorevi</label><select id='yetkili_gorev'>" + gorev_opts + "</select></div>"
+    body += "<div class='form-group'><label>Il</label><select id='il'><option value=''>Secin</option>" + il_opts + "</select></div>"
+    body += "<div class='form-group'><label>Ilce</label><input type='text' id='ilce' value='" + (firm.get("ilce") or "") + "'></div>"
+    body += "<div class='form-group'><label>Acik Adres</label><textarea id='adres' rows='2'>" + (firm["adres"] or "") + "</textarea></div>"
+    body += "<div class='form-group'><label>Telefon</label><input type='tel' id='telefon' value='" + (firm["telefon"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Email</label><input type='email' id='email' value='" + (firm["email"] or "") + "'></div>"
+    body += "<div class='form-group'><label>Yeni Sifre (bos birakin degistirmek istemiyorsaniz)</label><input type='password' id='sifre' placeholder='Yeni sifre'></div>"
+    body += "<button class='btn' style='width:100%' onclick='guncelle()'>Guncelle</button></div></div>"
+    body += "<script>function guncelle(){var fd=new FormData();['unvan','yetkili_ad','yetkili_gorev','il','ilce','adres','telefon','email','sifre'].forEach(function(k){fd.append(k,document.getElementById(k).value);});fetch('/firma/profil/guncelle',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Bilgileriniz guncellendi!</div>';}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "</body></html>"
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Firma Profili</title>" + body)
+
+@app.post("/firma/profil/guncelle")
+async def firma_profil_guncelle(
+    unvan: str = Form(...),
+    yetkili_ad: str = Form(...),
+    yetkili_gorev: str = Form(default=""),
+    il: str = Form(default=""),
+    ilce: str = Form(default=""),
+    adres: str = Form(default=""),
+    telefon: str = Form(...),
+    email: str = Form(...),
+    sifre: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if sifre:
+        cur.execute(
+            "UPDATE firm_accounts SET unvan=%s, yetkili_ad=%s, yetkili_gorev=%s, il=%s, ilce=%s, adres=%s, telefon=%s, email=%s, sifre_hash=%s WHERE id=%s",
+            (unvan, yetkili_ad, yetkili_gorev, il, ilce, adres, telefon, email, hash_password(sifre), s["firm_id"])
+        )
+    else:
+        cur.execute(
+            "UPDATE firm_accounts SET unvan=%s, yetkili_ad=%s, yetkili_gorev=%s, il=%s, ilce=%s, adres=%s, telefon=%s, email=%s WHERE id=%s",
+            (unvan, yetkili_ad, yetkili_gorev, il, ilce, adres, telefon, email, s["firm_id"])
+        )
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
