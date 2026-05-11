@@ -39,22 +39,23 @@ def load_firms():
         conn.close()
         for f in db_firms:
             keys = list(f.keys())
-            lat = float(f["lat"]) if "lat" in keys and f["lat"] else 0
-            lng = float(f["lng"]) if "lng" in keys and f["lng"] else 0
+            lat = float(f["lat"]) if f.get("lat") else None
+            lng = float(f["lng"]) if f.get("lng") else None
             firms.append({
                 "id": f"db_{f['id']}",
                 "name": f["unvan"],
-                "address": (f["adres"] or "") + (", " + f["ilce"] if f.get("ilce") else "") + (", " + f["il"] if f.get("il") else ""),
-                "phone": f["telefon"],
+                "address": (f.get("adres") or "") + (", " + f["ilce"] if f.get("ilce") else "") + (", " + f["il"] if f.get("il") else ""),
+                "phone": f.get("telefon", ""),
                 "website": "",
                 "lat": lat if lat else 39.9,
                 "lng": lng if lng else 32.8,
-                "city": f["il"] if "il" in keys and f["il"] else "",
+                "city": f.get("il", ""),
                 "certified": False,
                 "rating": 0,
                 "reviews": 0,
                 "place_id": "",
                 "db_firm_id": f["id"],
+                "no_coords": not lat or not lng,
             })
     except Exception as e:
         print(f"DB firms load error: {e}")
@@ -335,6 +336,7 @@ function initMap(){
   map=L.map('map').setView([39.9,32.8],6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OpenStreetMap'}).addTo(map);
   ALL_FIRMS.slice(0,200).forEach(function(f){
+    if(f.no_coords) return;
     L.marker([f.lat,f.lng]).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+(f.address||''));
   });
 }
