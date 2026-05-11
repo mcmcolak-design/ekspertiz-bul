@@ -1,7 +1,12 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, Cookie
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import json, sqlite3
 from pathlib import Path
+from models import (init_db, get_conn, hash_password, check_password,
+                    create_session, get_session, delete_session)
+from notifications import email_yeni_randevu_firma, email_randevu_guncelleme_kullanici
+
+init_db()
 
 app = FastAPI()
 DB_PATH = Path(__file__).parent / "ekspertiz_prices.db"
@@ -142,7 +147,7 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 <header>
   <h1>Ekspertiz<em>Bul</em></h1>
   <p>Turkiye'nin En Buyuk Oto Ekspertiz Platformu</p>
-  <p style="margin-top:6px;font-size:.75rem;color:#888">Iletisim: <a href="mailto:mcolakai@gmail.com" style="color:#e53535;text-decoration:none">mcolakai@gmail.com</a> &nbsp;|&nbsp; <a href="/rehber" style="color:#e53535;text-decoration:none">&#128218; Ekspertiz Rehberi</a></p>
+  <p style="margin-top:6px;font-size:.75rem;color:#888">Iletisim: <a href="mailto:mcolakai@gmail.com" style="color:#e53535;text-decoration:none">mcolakai@gmail.com</a> &nbsp;|&nbsp; <a href="/rehber" style="color:#e53535;text-decoration:none">&#128218; Rehber</a> &nbsp;|&nbsp; <a href="/giris" style="color:#e53535;text-decoration:none">&#128274; Giris</a> &nbsp;|&nbsp; <a href="/kayit" style="color:#e53535;text-decoration:none">&#128100; Kayit Ol</a></p>
   <div class="stats">
     <div class="stat"><div class="stat-n" id="firmCount">0</div><div class="stat-l">Firma</div></div>
     <div class="stat"><div class="stat-n">81</div><div class="stat-l">Il</div></div>
@@ -359,6 +364,7 @@ function render(){
         '<div class="pkgs">'+pk+'</div>'+
         '<div class="acts">'+
           '<a href="'+detayUrl+'" target="_blank" class="ag">&#128269; Detay</a>'+
+          '<a href="/giris" class="ag" style="background:#1a0000;border-color:#1a0000;color:#fff">&#128197; Randevu Al</a>'+
           '<button class="aw-map" onclick="goMap('+f.lat+','+f.lng+')">&#128205; Harita</button>'+
           '<button class="aw-dir" onclick="yol('+f.lat+','+f.lng+')">&#128388; Yol Tarifi</button>'+
           (f.phone?'<a href="tel:'+f.phone+'" class="aw-tel">&#128222; '+f.phone+'</a>':'')+
@@ -813,6 +819,634 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 </div>
 </body>
 </html>"""
+
+
+
+# ============================================================
+# YARDIMCI FONKSIYONLAR
+# ============================================================
+
+def get_unread_count(firm_id):
+    conn = get_conn()
+    n = conn.execute("SELECT COUNT(*) FROM notifications WHERE firm_id=? AND okundu=0", (firm_id,)).fetchone()[0]
+    conn.close()
+    return n
+
+def add_notification(firm_id=None, user_id=None, tip="", mesaj="", appointment_id=None):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO notifications (firm_id, user_id, tip, mesaj, appointment_id) VALUES (?,?,?,?,?)",
+        (firm_id, user_id, tip, mesaj, appointment_id)
+    )
+    conn.commit()
+    conn.close()
+
+# ============================================================
+# AUTH ROUTES
+# ============================================================
+
+@app.get("/kayit", response_class=HTMLResponse)
+def kayit_page():
+    return _kayit_html()
+
+@app.post("/kayit", response_class=HTMLResponse)
+async def kayit_post(
+    tip: str = Form(...),
+    ad_soyad: str = Form(default=""),
+    email: str = Form(...),
+    telefon: str = Form(default=""),
+    sifre: str = Form(...),
+    unvan: str = Form(default=""),
+    yetkili_ad: str = Form(default=""),
+    yetkili_gorev: str = Form(default=""),
+    adres: str = Form(default="")
+):
+    conn = get_conn()
+    if tip == "kullanici":
+        ex = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+        if ex:
+            conn.close()
+            return _kayit_html(hata="Bu email zaten kayıtlı.")
+        conn.execute(
+            "INSERT INTO users (ad_soyad, email, telefon, sifre_hash) VALUES (?,?,?,?)",
+            (ad_soyad, email, telefon, hash_password(sifre))
+        )
+        conn.commit()
+        user = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+        conn.close()
+        token = create_session(user_id=user["id"], role="user")
+        resp = RedirectResponse("/kullanici/panel", status_code=303)
+        resp.set_cookie("session", token, max_age=604800, httponly=True)
+        return resp
+    else:
+        ex = conn.execute("SELECT id FROM firm_accounts WHERE email=?", (email,)).fetchone()
+        if ex:
+            conn.close()
+            return _kayit_html(hata="Bu email zaten kayıtlı.")
+        conn.execute(
+            "INSERT INTO firm_accounts (unvan, yetkili_ad, yetkili_gorev, adres, telefon, email, sifre_hash) VALUES (?,?,?,?,?,?,?)",
+            (unvan, yetkili_ad, yetkili_gorev, adres, telefon, email, hash_password(sifre))
+        )
+        conn.commit()
+        firm = conn.execute("SELECT id FROM firm_accounts WHERE email=?", (email,)).fetchone()
+        conn.close()
+        token = create_session(firm_id=firm["id"], role="firma")
+        resp = RedirectResponse("/firma/panel", status_code=303)
+        resp.set_cookie("session", token, max_age=604800, httponly=True)
+        return resp
+
+@app.get("/giris", response_class=HTMLResponse)
+def giris_page():
+    return _giris_html()
+
+@app.post("/giris", response_class=HTMLResponse)
+async def giris_post(tip: str = Form(...), email: str = Form(...), sifre: str = Form(...)):
+    conn = get_conn()
+    if tip == "kullanici":
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        conn.close()
+        if not row or not check_password(sifre, row["sifre_hash"]):
+            return _giris_html(hata="Email veya şifre hatalı.")
+        token = create_session(user_id=row["id"], role="user")
+        resp = RedirectResponse("/kullanici/panel", status_code=303)
+        resp.set_cookie("session", token, max_age=604800, httponly=True)
+        return resp
+    else:
+        row = conn.execute("SELECT * FROM firm_accounts WHERE email=?", (email,)).fetchone()
+        conn.close()
+        if not row or not check_password(sifre, row["sifre_hash"]):
+            return _giris_html(hata="Email veya şifre hatalı.")
+        token = create_session(firm_id=row["id"], role="firma")
+        resp = RedirectResponse("/firma/panel", status_code=303)
+        resp.set_cookie("session", token, max_age=604800, httponly=True)
+        return resp
+
+@app.get("/cikis")
+def cikis(session: str = Cookie(default=None)):
+    delete_session(session)
+    resp = RedirectResponse("/", status_code=303)
+    resp.delete_cookie("session")
+    return resp
+
+# ============================================================
+# KULLANICI PANELI
+# ============================================================
+
+@app.get("/kullanici/panel", response_class=HTMLResponse)
+def kullanici_panel(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return RedirectResponse("/giris?tip=kullanici", status_code=303)
+    conn = get_conn()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (s["user_id"],)).fetchone()
+    randevular = conn.execute("""
+        SELECT a.*, f.unvan as firma_unvan, f.telefon as firma_tel
+        FROM appointments a JOIN firm_accounts f ON f.id=a.firm_id
+        WHERE a.user_id=? ORDER BY a.created_at DESC
+    """, (s["user_id"],)).fetchall()
+    conn.close()
+    return _kullanici_panel_html(user, randevular)
+
+@app.post("/randevu/olustur")
+async def randevu_olustur(
+    request: Request,
+    firm_id: int = Form(...),
+    tarih: str = Form(...),
+    saat: str = Form(...),
+    arac_marka: str = Form(default=""),
+    arac_model: str = Form(default=""),
+    arac_yil: str = Form(default=""),
+    paket: str = Form(default=""),
+    notlar: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return JSONResponse({"error": "Giris gerekli"}, status_code=401)
+    conn = get_conn()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (s["user_id"],)).fetchone()
+    firm = conn.execute("SELECT * FROM firm_accounts WHERE id=?", (firm_id,)).fetchone()
+    conn.execute(
+        "INSERT INTO appointments (user_id,firm_id,tarih,saat,arac_marka,arac_model,arac_yil,paket,notlar) VALUES (?,?,?,?,?,?,?,?,?)",
+        (s["user_id"], firm_id, tarih, saat, arac_marka, arac_model, arac_yil, paket, notlar)
+    )
+    conn.commit()
+    apt = conn.execute("SELECT last_insert_rowid() as id").fetchone()
+    arac = f"{arac_marka} {arac_model} {arac_yil}".strip() or "Belirtilmedi"
+    add_notification(
+        firm_id=firm_id,
+        tip="yeni_randevu",
+        mesaj=f"Yeni randevu: {user['ad_soyad']} - {tarih} {saat} - {arac}",
+        appointment_id=apt["id"]
+    )
+    conn.close()
+    if firm:
+        email_yeni_randevu_firma(firm["email"], firm["unvan"], user["ad_soyad"], tarih, saat, arac, paket)
+    return JSONResponse({"success": True, "message": "Randevu talebiniz gönderildi!"})
+
+# ============================================================
+# FIRMA PANELI
+# ============================================================
+
+@app.get("/firma/panel", response_class=HTMLResponse)
+def firma_panel(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return RedirectResponse("/giris?tip=firma", status_code=303)
+    conn = get_conn()
+    firm = conn.execute("SELECT * FROM firm_accounts WHERE id=?", (s["firm_id"],)).fetchone()
+    randevular = conn.execute("""
+        SELECT a.*, u.ad_soyad, u.telefon as user_tel, u.email as user_email
+        FROM appointments a JOIN users u ON u.id=a.user_id
+        WHERE a.firm_id=? ORDER BY a.tarih DESC, a.saat DESC
+    """, (s["firm_id"],)).fetchall()
+    bildirimler = conn.execute(
+        "SELECT * FROM notifications WHERE firm_id=? ORDER BY created_at DESC LIMIT 20",
+        (s["firm_id"],)
+    ).fetchall()
+    paketler = conn.execute("SELECT * FROM firm_packages WHERE firm_id=? AND aktif=1", (s["firm_id"],)).fetchall()
+    unread = get_unread_count(s["firm_id"])
+    conn.close()
+    return _firma_panel_html(firm, randevular, bildirimler, paketler, unread)
+
+@app.post("/firma/randevu/guncelle")
+async def randevu_guncelle(
+    appointment_id: int = Form(...),
+    durum: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    conn.execute("UPDATE appointments SET durum=? WHERE id=? AND firm_id=?",
+                 (durum, appointment_id, s["firm_id"]))
+    apt = conn.execute("""
+        SELECT a.*, u.email as user_email, u.ad_soyad, f.unvan
+        FROM appointments a JOIN users u ON u.id=a.user_id
+        JOIN firm_accounts f ON f.id=a.firm_id
+        WHERE a.id=?
+    """, (appointment_id,)).fetchone()
+    if apt:
+        add_notification(
+            user_id=apt["user_id"],
+            tip="randevu_guncelleme",
+            mesaj=f"Randevunuz {durum}: {apt['unvan']} - {apt['tarih']} {apt['saat']}",
+            appointment_id=appointment_id
+        )
+        email_randevu_guncelleme_kullanici(
+            apt["user_email"], apt["ad_soyad"], apt["unvan"],
+            apt["tarih"], apt["saat"], durum
+        )
+    conn.commit()
+    conn.close()
+    return JSONResponse({"success": True})
+
+@app.get("/firma/bildirimler", response_class=JSONResponse)
+def firma_bildirimler(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"count": 0, "items": []})
+    conn = get_conn()
+    items = conn.execute(
+        "SELECT * FROM notifications WHERE firm_id=? AND okundu=0 ORDER BY created_at DESC",
+        (s["firm_id"],)
+    ).fetchall()
+    conn.execute("UPDATE notifications SET okundu=1 WHERE firm_id=?", (s["firm_id"],))
+    conn.commit()
+    conn.close()
+    return JSONResponse({"count": len(items), "items": [dict(i) for i in items]})
+
+@app.post("/firma/paket/ekle")
+async def paket_ekle(
+    paket_adi: str = Form(...),
+    fiyat: int = Form(...),
+    icerik: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    conn.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, icerik) VALUES (?,?,?,?)",
+                 (s["firm_id"], paket_adi, fiyat, icerik))
+    conn.commit()
+    conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/firma/paket/sil")
+async def paket_sil(paket_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    conn.execute("UPDATE firm_packages SET aktif=0 WHERE id=? AND firm_id=?", (paket_id, s["firm_id"]))
+    conn.commit()
+    conn.close()
+    return JSONResponse({"success": True})
+
+# ============================================================
+# HTML SAYFALAR
+# ============================================================
+
+def _base_style():
+    return """
+    <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Inter,sans-serif;background:#f5f0f0;color:#1a0000;min-height:100vh}
+    .topbar{background:linear-gradient(135deg,#1a0000,#3d0000);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+    .topbar a{color:#fff;text-decoration:none;font-size:.85rem}
+    .topbar h1{font-size:1.1rem;font-weight:800}
+    .topbar h1 em{color:#e53535;font-style:normal}
+    .back{display:inline-block;margin:14px 16px;background:#fff;border:1px solid #ddd;padding:7px 14px;border-radius:8px;text-decoration:none;color:#555;font-size:.82rem}
+    .back:hover{border-color:#e53535;color:#e53535}
+    .wrap{max-width:860px;margin:0 auto;padding:16px}
+    .card{background:#fff;border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .card h2{font-size:1rem;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e53535}
+    .form-group{margin-bottom:12px}
+    .form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:#555}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;outline:none;font-family:inherit}
+    .form-group input:focus,.form-group select:focus{border-color:#e53535}
+    .btn{background:#e53535;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem}
+    .btn:hover{background:#c41c1c}
+    .btn-outline{background:#fff;color:#e53535;border:2px solid #e53535;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.82rem}
+    .btn-outline:hover{background:#fff0f0}
+    .btn-green{background:#28a745;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem}
+    .btn-red{background:#dc3545;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem}
+    .badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:.72rem;font-weight:700}
+    .badge-beklemede{background:#fff3cd;color:#856404}
+    .badge-onaylandi{background:#d4edda;color:#155724}
+    .badge-reddedildi{background:#f8d7da;color:#721c24}
+    .badge-tamamlandi{background:#d1ecf1;color:#0c5460}
+    .alert{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:.85rem}
+    .alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+    .alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}
+    .notif-dot{background:#e53535;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;margin-left:6px}
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    """
+
+def _topbar(title="", back_url="/", back_label="Ana Sayfa"):
+    return f"""
+    <div class="topbar">
+      <div><a href="{back_url}">← {back_label}</a></div>
+      <h1>Ekspertiz<em>Bul</em> {title}</h1>
+      <a href="/cikis">Çıkış</a>
+    </div>"""
+
+def _giris_html(hata=None):
+    h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
+    return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Giriş - EkspertizBul</title>{_base_style()}</head><body>
+    {_topbar("Giriş", "/", "Ana Sayfa")}
+    <div class="wrap" style="max-width:440px">
+    {h}
+    <div class="card">
+      <h2>Giriş Yap</h2>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="setTip('kullanici')" id="tab-k" class="btn" style="flex:1">Kullanıcı</button>
+        <button onclick="setTip('firma')" id="tab-f" class="btn-outline" style="flex:1">Firma</button>
+      </div>
+      <form method="post" action="/giris">
+        <input type="hidden" name="tip" id="tip-input" value="kullanici">
+        <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
+        <div class="form-group"><label>Şifre</label><input type="password" name="sifre" required></div>
+        <button type="submit" class="btn" style="width:100%">Giriş Yap</button>
+      </form>
+      <p style="text-align:center;margin-top:14px;font-size:.82rem;color:#888">
+        Hesabın yok mu? <a href="/kayit" style="color:#e53535">Kayıt Ol</a>
+      </p>
+    </div></div>
+    <script>
+    function setTip(t){{
+      document.getElementById('tip-input').value=t;
+      document.getElementById('tab-k').className=t==='kullanici'?'btn':'btn-outline';
+      document.getElementById('tab-f').className=t==='firma'?'btn':'btn-outline';
+    }}
+    </script></body></html>"""
+
+def _kayit_html(hata=None):
+    h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
+    gorevler = ["İş Yeri Sahibi","Müdür","Yetkili Personel","Şube Müdürü","Diğer"]
+    gorev_opts = "".join([f'<option>{g}</option>' for g in gorevler])
+    return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Kayıt - EkspertizBul</title>{_base_style()}</head><body>
+    {_topbar("Kayıt", "/", "Ana Sayfa")}
+    <div class="wrap" style="max-width:500px">
+    {h}
+    <div class="card">
+      <h2>Kayıt Ol</h2>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="setTip('kullanici')" id="tab-k" class="btn" style="flex:1">Kullanıcı</button>
+        <button onclick="setTip('firma')" id="tab-f" class="btn-outline" style="flex:1">Firma</button>
+      </div>
+      <form method="post" action="/kayit">
+        <input type="hidden" name="tip" id="tip-input" value="kullanici">
+        <div id="kullanici-fields">
+          <div class="form-group"><label>Ad Soyad</label><input type="text" name="ad_soyad"></div>
+          <div class="form-group"><label>Telefon</label><input type="tel" name="telefon"></div>
+        </div>
+        <div id="firma-fields" style="display:none">
+          <div class="form-group"><label>Firma Ünvanı</label><input type="text" name="unvan"></div>
+          <div class="form-group"><label>Yetkili Adı Soyadı</label><input type="text" name="yetkili_ad"></div>
+          <div class="form-group"><label>Görevi</label>
+            <select name="yetkili_gorev">{gorev_opts}</select></div>
+          <div class="form-group"><label>Adres</label><textarea name="adres" rows="2"></textarea></div>
+          <div class="form-group"><label>Telefon</label><input type="tel" name="telefon"></div>
+        </div>
+        <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
+        <div class="form-group"><label>Şifre</label><input type="password" name="sifre" required minlength="6"></div>
+        <button type="submit" class="btn" style="width:100%">Kayıt Ol</button>
+      </form>
+      <p style="text-align:center;margin-top:14px;font-size:.82rem;color:#888">
+        Zaten hesabın var mı? <a href="/giris" style="color:#e53535">Giriş Yap</a>
+      </p>
+    </div></div>
+    <script>
+    function setTip(t){{
+      document.getElementById('tip-input').value=t;
+      document.getElementById('tab-k').className=t==='kullanici'?'btn':'btn-outline';
+      document.getElementById('tab-f').className=t==='firma'?'btn':'btn-outline';
+      document.getElementById('kullanici-fields').style.display=t==='kullanici'?'block':'none';
+      document.getElementById('firma-fields').style.display=t==='firma'?'block':'none';
+    }}
+    </script></body></html>"""
+
+def _kullanici_panel_html(user, randevular):
+    rows = ""
+    for r in randevular:
+        arac = f"{r['arac_marka']} {r['arac_model']} {r['arac_yil']}".strip() or "-"
+        rows += f"""<tr>
+          <td style="padding:8px">{r['firma_unvan']}</td>
+          <td style="padding:8px">{r['tarih']} {r['saat']}</td>
+          <td style="padding:8px">{arac}</td>
+          <td style="padding:8px">{r['paket'] or '-'}</td>
+          <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
+        </tr>"""
+    if not rows:
+        rows = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
+    return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Profilim - EkspertizBul</title>{_base_style()}</head><body>
+    {_topbar("", "/", "Ana Sayfa")}
+    <div class="wrap">
+      <div class="card">
+        <h2>👤 Hoşgeldin, {user['ad_soyad']}</h2>
+        <p style="font-size:.85rem;color:#666">{user['email']}</p>
+      </div>
+      <div class="card">
+        <h2>📅 Randevularım</h2>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead><tr style="background:#f5f0f0">
+            <th style="padding:8px;text-align:left">Firma</th>
+            <th style="padding:8px;text-align:left">Tarih</th>
+            <th style="padding:8px;text-align:left">Araç</th>
+            <th style="padding:8px;text-align:left">Paket</th>
+            <th style="padding:8px;text-align:left">Durum</th>
+          </tr></thead>
+          <tbody>{rows}</tbody>
+        </table></div>
+      </div>
+    </div></body></html>"""
+
+def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
+    # Randevu satirlari
+    rows = ""
+    for r in randevular:
+        arac = f"{r['arac_marka']} {r['arac_model']} {r['arac_yil']}".strip() or "-"
+        onay_btns = ""
+        if r["durum"] == "beklemede":
+            onay_btns = f"""
+            <button class="btn-green" onclick="updateApt({r['id']},'onaylandi')">Onayla</button>
+            <button class="btn-red" onclick="updateApt({r['id']},'reddedildi')" style="margin-left:4px">Reddet</button>"""
+        elif r["durum"] == "onaylandi":
+            apt_id = r['id']
+            onay_btns = f'<button class="btn-green" onclick="updateApt({apt_id},\'tamamlandi\')">Tamamlandi</button>'
+        rows += f"""<tr>
+          <td style="padding:8px">{r['ad_soyad']}<br><small style="color:#888">{r['user_tel'] or ''}</small></td>
+          <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
+          <td style="padding:8px">{arac}</td>
+          <td style="padding:8px">{r['paket'] or '-'}</td>
+          <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
+          <td style="padding:8px">{onay_btns}</td>
+        </tr>"""
+    if not rows:
+        rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
+
+    # Paket satirlari
+    pkg_rows = ""
+    for p in paketler:
+        pkg_rows += f"""<tr>
+          <td style="padding:8px">{p['paket_adi']}</td>
+          <td style="padding:8px">{p['fiyat']:,} TL</td>
+          <td style="padding:8px;font-size:.78rem;color:#666">{p['icerik'] or '-'}</td>
+          <td style="padding:8px"><button class="btn-red" onclick="silPaket({p['id']})">Sil</button></td>
+        </tr>"""
+
+    # Bildirim badge
+    notif_badge = f'<span class="notif-dot">{unread}</span>' if unread > 0 else ''
+
+    return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Firma Paneli - EkspertizBul</title>{_base_style()}
+    <style>
+    .tabs{{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}}
+    .tab{{background:#fff;border:2px solid #ddd;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600}}
+    .tab.on{{border-color:#e53535;color:#e53535;background:#fff0f0}}
+    .tab-content{{display:none}}.tab-content.on{{display:block}}
+    </style></head><body>
+    {_topbar("Firma Paneli", "/", "Ana Sayfa")}
+
+    <!-- Bildirim Popup -->
+    <div id="notifModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:92%;max-width:500px;max-height:80vh;overflow:auto;padding:20px;position:relative">
+        <button onclick="document.getElementById('notifModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:1.3rem;cursor:pointer">✕</button>
+        <h3 style="margin-bottom:14px;color:#1a0000">🔔 Bildirimler</h3>
+        <div id="notifList"></div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:800;font-size:1.05rem">{firm['unvan']}</div>
+          <div style="font-size:.82rem;color:#666">{firm['yetkili_ad']} - {firm['yetkili_gorev']}</div>
+        </div>
+        <button class="btn" onclick="showNotifs()">🔔 Bildirimler{notif_badge}</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" onclick="showTab('randevular')">📅 Randevular</button>
+        <button class="tab" onclick="showTab('paketler')">💰 Paketlerim</button>
+        <button class="tab" onclick="showTab('profil')">⚙️ Profil</button>
+      </div>
+
+      <!-- RANDEVULAR -->
+      <div id="tab-randevular" class="tab-content on card">
+        <h2>📅 Randevular</h2>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead><tr style="background:#f5f0f0">
+            <th style="padding:8px;text-align:left">Müşteri</th>
+            <th style="padding:8px;text-align:left">Tarih/Saat</th>
+            <th style="padding:8px;text-align:left">Araç</th>
+            <th style="padding:8px;text-align:left">Paket</th>
+            <th style="padding:8px;text-align:left">Durum</th>
+            <th style="padding:8px;text-align:left">İşlem</th>
+          </tr></thead>
+          <tbody id="randevu-tbody">{rows}</tbody>
+        </table></div>
+      </div>
+
+      <!-- PAKETLER -->
+      <div id="tab-paketler" class="tab-content card">
+        <h2>💰 Paketlerim</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">
+          <thead><tr style="background:#f5f0f0">
+            <th style="padding:8px;text-align:left">Paket</th>
+            <th style="padding:8px;text-align:left">Fiyat</th>
+            <th style="padding:8px;text-align:left">İçerik</th>
+            <th style="padding:8px"></th>
+          </tr></thead>
+          <tbody id="paket-tbody">{pkg_rows or '<tr><td colspan="4" style="padding:12px;text-align:center;color:#aaa">Henüz paket yok</td></tr>'}</tbody>
+        </table>
+        <div style="background:#f5f0f0;padding:14px;border-radius:10px">
+          <div style="font-weight:600;margin-bottom:10px">Yeni Paket Ekle</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="p-adi" placeholder="Paket adı" style="flex:1;min-width:120px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <input id="p-fiyat" type="number" placeholder="Fiyat (TL)" style="width:120px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <input id="p-icerik" placeholder="İçerik" style="flex:2;min-width:180px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <button class="btn" onclick="paketEkle()">Ekle</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFIL -->
+      <div id="tab-profil" class="tab-content card">
+        <h2>⚙️ Firma Bilgileri</h2>
+        <table style="font-size:.85rem;border-collapse:collapse">
+          <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Ünvan</td><td>{firm['unvan']}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Yetkili</td><td>{firm['yetkili_ad']} ({firm['yetkili_gorev']})</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Adres</td><td>{firm['adres']}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Telefon</td><td>{firm['telefon']}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;font-weight:600;color:#888">Email</td><td>{firm['email']}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <script>
+    function showTab(t){{
+      document.querySelectorAll('.tab-content').forEach(function(el){{el.classList.remove('on');}});
+      document.querySelectorAll('.tab').forEach(function(el){{el.classList.remove('on');}});
+      document.getElementById('tab-'+t).classList.add('on');
+      event.target.classList.add('on');
+    }}
+
+    function updateApt(id, durum){{
+      var fd=new FormData();
+      fd.append('appointment_id',id);
+      fd.append('durum',durum);
+      fetch('/firma/randevu/guncelle',{{method:'POST',body:fd}})
+        .then(function(r){{return r.json();}})
+        .then(function(){{location.reload();}});
+    }}
+
+    function paketEkle(){{
+      var adi=document.getElementById('p-adi').value;
+      var fiyat=document.getElementById('p-fiyat').value;
+      var icerik=document.getElementById('p-icerik').value;
+      if(!adi||!fiyat){{alert('Paket adı ve fiyat zorunlu!');return;}}
+      var fd=new FormData();
+      fd.append('paket_adi',adi);
+      fd.append('fiyat',fiyat);
+      fd.append('icerik',icerik);
+      fetch('/firma/paket/ekle',{{method:'POST',body:fd}})
+        .then(function(r){{return r.json();}})
+        .then(function(){{location.reload();}});
+    }}
+
+    function silPaket(id){{
+      if(!confirm('Paketi silmek istediğinize emin misiniz?'))return;
+      var fd=new FormData();fd.append('paket_id',id);
+      fetch('/firma/paket/sil',{{method:'POST',body:fd}})
+        .then(function(){{location.reload();}});
+    }}
+
+    function showNotifs(){{
+      fetch('/firma/bildirimler')
+        .then(function(r){{return r.json();}})
+        .then(function(data){{
+          var h='';
+          if(data.items.length===0){{
+            h='<p style="color:#aaa;text-align:center;padding:20px">Yeni bildirim yok</p>';
+          }} else {{
+            data.items.forEach(function(n){{
+              h+='<div style="padding:10px;border-bottom:1px solid #f0f0f0">'+
+                '<div style="font-size:.85rem">'+n.mesaj+'</div>'+
+                '<div style="font-size:.75rem;color:#aaa">'+n.created_at+'</div></div>';
+            }});
+          }}
+          document.getElementById('notifList').innerHTML=h;
+          document.getElementById('notifModal').style.display='flex';
+        }});
+    }}
+
+    // 30 saniyede bir bildirim kontrolu
+    setInterval(function(){{
+      fetch('/firma/bildirimler')
+        .then(function(r){{return r.json();}})
+        .then(function(data){{
+          var dot=document.querySelector('.notif-dot');
+          if(data.count>0&&!dot){{
+            document.querySelector('[onclick="showNotifs()"]').innerHTML='🔔 Bildirimler<span class="notif-dot">'+data.count+'</span>';
+          }}
+        }});
+    }}, 30000);
+    </script>
+    </body></html>"""
 
 @app.post("/scrape")
 async def trigger_scrape():
