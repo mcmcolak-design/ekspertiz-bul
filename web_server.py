@@ -32,9 +32,10 @@ def load_firms():
     try:
         from models import get_conn as _get_conn
         conn = _get_conn()
-        db_firms = conn.execute(
-            "SELECT * FROM firm_accounts WHERE active=1"
-        ).fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM firm_accounts WHERE active=1")
+        db_firms = cur.fetchall()
+        cur.close()
         conn.close()
         for f in db_firms:
             firms.append({
@@ -57,22 +58,41 @@ def load_firms():
     return firms
 
 def get_prices():
-    if not DB_PATH.exists():
-        return {}
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("""
-        SELECT f.firm_id, p.package_name, p.price
-        FROM packages p JOIN firms f ON f.firm_id = p.firm_id
-        WHERE p.scraped_at = (SELECT MAX(p2.scraped_at) FROM packages p2 WHERE p2.firm_id = p.firm_id)
-        ORDER BY p.price ASC
-    """).fetchall()
-    conn.close()
-    prices = {}
-    for fid, pname, price in rows:
-        if fid not in prices:
-            prices[fid] = []
-        prices[fid].append({"name": pname, "price": price})
-    return prices
+    # Oncelikle SQLite DB'den fiyatlari al
+    if DB_PATH.exists():
+        try:
+            import sqlite3 as _sq
+            conn = _sq.connect(DB_PATH)
+            rows = conn.execute("""
+                SELECT f.firm_id, p.package_name, p.price
+                FROM packages p JOIN firms f ON f.firm_id = p.firm_id
+                WHERE p.scraped_at = (SELECT MAX(p2.scraped_at) FROM packages p2 WHERE p2.firm_id = p.firm_id)
+                ORDER BY p.price ASC
+            """).fetchall()
+            conn.close()
+            prices = {}
+            for fid, pname, price in rows:
+                if fid not in prices:
+                    prices[fid] = []
+                prices[fid].append({"name": pname, "price": price})
+            # PostgreSQL'deki firma paketlerini de ekle
+            try:
+                pg = get_conn()
+                cur = pg.cursor()
+                cur.execute("SELECT firm_id, paket_adi, fiyat FROM firm_packages WHERE aktif=1")
+                for row in cur.fetchall():
+                    fid = f"db_{row['firm_id']}"
+                    if fid not in prices:
+                        prices[fid] = []
+                    prices[fid].append({"name": row['paket_adi'], "price": row['fiyat']})
+                cur.close()
+                pg.close()
+            except:
+                pass
+            return prices
+        except Exception as e:
+            print(f"get_prices error: {e}")
+    return {}
 
 PAGE = """<!DOCTYPE html>
 <html lang="tr">
