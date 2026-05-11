@@ -638,14 +638,49 @@ def index():
     firms_json = json.dumps(firms, ensure_ascii=False)
     prices_json = json.dumps(prices, ensure_ascii=False)
     html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
-    html = html.replace("</body></html>", """
-<style>.tip2{border-bottom:1px dashed #c41c1c;cursor:pointer;font-weight:600}</style>
-<div id="tpop2" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;max-width:85vw;line-height:1.6;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center"></div>
+    # Tooltip: paket isimlerinde gecen terimleri wrap et
+    TERMS_PY = {
+        "DYNO": "Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer.",
+        "OBD": "Aracin elektronik beyin teshis sistemi. Ariza kodlarini okur.",
+        "Tramer": "Resmi kaza ve hasar gecmisi kaydi.",
+        "Kaporta": "Aracin dis metal govdesi. Boya kalinligi olculerek degisik parca tespit edilir.",
+        "Sase": "Aracin ana iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.",
+        "Conta": "Motor sizdirmazlik elemani. Kacak motor hasarinin habercisi.",
+        "Supansiyon": "Yol tutus sistemi. Amortisor ve baglanti elemanlari.",
+        "ABS": "Frende tekerleklerin kilitlenmesini onler.",
+        "ESP": "Elektronik denge sistemi. Aracin kontrolden cikmamasi icin.",
+        "Airbag": "Kaza aninda koruyucu hava yastigi. Patlamis airbag tehlikelidir.",
+        "Alt Mekanik": "Aracin alt kismi: rot, rotil, sanziman, diferansiyel ve aks kontrolleri.",
+        "Mekanik Garanti": "Ekspertiz sonrasi belirlenen sure icerisinde cikan arizalarin karsilanmasi.",
+        "Hasar Kaydi": "TRAMER sistemindeki resmi kaza ve hasar gecmisi sorgusu.",
+        "Hasar Sorgusu": "TRAMER uzerinden aracin kaza ve hasar gecmisinin sorgulanmasi.",
+    }
+    terms_list = list(TERMS_PY.items())
+    terms_js = "var TR={" + ",".join([f'"{k}":"{v}"' for k,v in terms_list]) + "};"
+    terms_keys_js = "var TRK=Object.keys(TR);"
+
+    html = html.replace("</body></html>", f"""
+<style>.tip2{{border-bottom:1px dashed #c41c1c;cursor:pointer;font-weight:700}}</style>
+<div id="tpop2" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a0000;color:#fff;padding:14px 18px;border-radius:12px;font-size:14px;max-width:88vw;line-height:1.7;z-index:9999;box-shadow:0 4px 24px rgba(0,0,0,.6);text-align:center"></div>
 <script>
-var TR={"DYNO":"Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer.","OBD":"Aracin elektronik beyin teshis sistemi. Ariza kodlarini okur.","Tramer":"Resmi kaza ve hasar gecmisi kaydi.","Kaporta":"Aracin dis metal govdesi. Boya kalinligi olculerek degisik parca tespit edilir.","Sase":"Aracin ana iskeleti. Hasar goren sase ciddi guvenlik riski olusturur.","Conta":"Motor sizdirmazlik elemani. Kacak motor hasarinin habercisi.","Supansiyon":"Yol tutus sistemi. Amortisor ve baglanti elemanlari.","ABS":"Frende tekerleklerin kilitlenmesini onler.","ESP":"Elektronik denge sistemi. Aracin kontrolden cikmamasi icin.","Airbag":"Kaza aninda koruyucu hava yastigi. Patlamis airbag tehlikelidir."};
-var TRK=Object.keys(TR);
-function st(i){var el=document.getElementById("tpop2");el.innerHTML="<b>"+TRK[i]+"</b><br>"+TR[TRK[i]]+"<br><span onclick=\"document.getElementById(\\"tpop2\\").style.display=\\"none\\"\">&#10005; Kapat</span>";el.style.display="block";}
-document.addEventListener("click",function(e){if(!e.target.closest("#tpop2")&&!e.target.closest(".tip2"))document.getElementById("tpop2").style.display="none";});
+{terms_js}
+{terms_keys_js}
+function st(i){{var el=document.getElementById("tpop2");el.innerHTML="<b>"+TRK[i]+"</b><br>"+TR[TRK[i]]+'<br><span onclick="document.getElementById(\'tpop2\').style.display=\'none\'" style="color:#ffaaaa;cursor:pointer;font-size:12px">&#10005; Kapat</span>';el.style.display="block";}}
+document.addEventListener("click",function(e){{if(!e.target.closest("#tpop2")&&!e.target.closest(".tip2"))document.getElementById("tpop2").style.display="none";}});
+function applyTooltips(){{
+  document.querySelectorAll(".pn,.pp,.fm").forEach(function(el){{
+    var html=el.innerHTML;
+    TRK.forEach(function(k,i){{
+      if(html.indexOf(k)!==-1&&html.indexOf('tip2')===-1){{
+        html=html.replace(k,'<span class="tip2" onclick="st('+i+')">'+k+'</span>');
+      }}
+    }});
+    el.innerHTML=html;
+  }});
+}}
+var _origRender=render;
+render=function(){{_origRender();setTimeout(applyTooltips,100);}};
+applyTooltips();
 </script>
 </body></html>""")
     return html
