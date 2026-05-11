@@ -1639,65 +1639,6 @@ async def trigger_scrape():
     results = await run_all()
     return {"success": True, "firms": len(results)}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-@app.get("/randevu/{firm_id}", response_class=HTMLResponse)
-def randevu_page(firm_id: str, session: str = Cookie(default=None)):
-    import datetime
-    s = get_session(session)
-    if not s or s["role"] != "user":
-        return RedirectResponse("/giris", status_code=303)
-    firm_db_id = None
-    firm_name = "Firma"
-    if firm_id.startswith("db_"):
-        try:
-            fid = int(firm_id.replace("db_", ""))
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (fid,))
-            firm = cur.fetchone()
-            cur.close(); conn.close()
-            if firm:
-                firm_name = firm["unvan"]
-                firm_db_id = fid
-        except Exception as e:
-            print(f"randevu_page: {e}")
-    if not firm_db_id:
-        return HTMLResponse("<p>Firma bulunamadi. <a href='/'>Ana Sayfa</a></p>", status_code=404)
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (firm_db_id,))
-    paketler = cur.fetchall()
-    cur.close(); conn.close()
-    today = datetime.date.today().isoformat()
-    markalar = ["","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mazda","Mercedes-Benz","Nissan","Opel","Peugeot","Renault","Skoda","Toyota","Volkswagen","Diger"]
-    marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
-    yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
-    saat_opts = "".join(["<option value='"+str(h).zfill(2)+":00'>"+str(h).zfill(2)+":00</option>" for h in range(8,19)])
-    pkg_opts = "<option value=''>Paket secin (opsiyonel)</option>"
-    for p in paketler:
-        pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
-    fid_str = str(firm_db_id)
-    body = _base_style()
-    body += "<body>" + _topbar("Randevu Al", "/", "Ana Sayfa")
-    body += "<div class='wrap' style='max-width:500px'><div class='card'>"
-    body += "<h2>&#128197; " + firm_name + " - Randevu Al</h2><div id='msg'></div>"
-    body += "<div class='form-group'><label>Tarih</label><input type='date' id='tarih' min='" + today + "'></div>"
-    body += "<div class='form-group'><label>Saat</label><select id='saat'>" + saat_opts + "</select></div>"
-    body += "<div class='form-group'><label>Arac Markasi</label><select id='marka'>" + marka_opts + "</select></div>"
-    body += "<div class='form-group'><label>Model</label><input type='text' id='model' placeholder='Ornek: Clio, Focus'></div>"
-    body += "<div class='form-group'><label>Yil</label><select id='yil'>" + yil_opts + "</select></div>"
-    body += "<div class='form-group'><label>Paket</label><select id='paket'>" + pkg_opts + "</select></div>"
-    body += "<div class='form-group'><label>Notlar</label><textarea id='notlar' rows='2'></textarea></div>"
-    body += "<button class='btn' style='width:100%' onclick='submitR()'>Randevu Gonder</button>"
-    body += "</div></div>"
-    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
-    body += "</body></html>"
-    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
-
 
 @app.get("/kullanici/profil", response_class=HTMLResponse)
 def kullanici_profil(session: str = Cookie(default=None)):
@@ -1807,3 +1748,62 @@ async def firma_profil_guncelle(
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/randevu/{firm_id}", response_class=HTMLResponse)
+def randevu_page(firm_id: str, session: str = Cookie(default=None)):
+    import datetime
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return RedirectResponse("/giris", status_code=303)
+    firm_db_id = None
+    firm_name = "Firma"
+    if firm_id.startswith("db_"):
+        try:
+            fid = int(firm_id.replace("db_", ""))
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (fid,))
+            firm = cur.fetchone()
+            cur.close(); conn.close()
+            if firm:
+                firm_name = firm["unvan"]
+                firm_db_id = fid
+        except Exception as e:
+            print(f"randevu_page: {e}")
+    if not firm_db_id:
+        return HTMLResponse("<p>Firma bulunamadi. <a href='/'>Ana Sayfa</a></p>", status_code=404)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (firm_db_id,))
+    paketler = cur.fetchall()
+    cur.close(); conn.close()
+    today = datetime.date.today().isoformat()
+    markalar = ["","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mazda","Mercedes-Benz","Nissan","Opel","Peugeot","Renault","Skoda","Toyota","Volkswagen","Diger"]
+    marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
+    yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
+    saat_opts = "".join(["<option value='"+str(h).zfill(2)+":00'>"+str(h).zfill(2)+":00</option>" for h in range(8,19)])
+    pkg_opts = "<option value=''>Paket secin (opsiyonel)</option>"
+    for p in paketler:
+        pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
+    fid_str = str(firm_db_id)
+    body = _base_style()
+    body += "<body>" + _topbar("Randevu Al", "/", "Ana Sayfa")
+    body += "<div class='wrap' style='max-width:500px'><div class='card'>"
+    body += "<h2>&#128197; " + firm_name + " - Randevu Al</h2><div id='msg'></div>"
+    body += "<div class='form-group'><label>Tarih</label><input type='date' id='tarih' min='" + today + "'></div>"
+    body += "<div class='form-group'><label>Saat</label><select id='saat'>" + saat_opts + "</select></div>"
+    body += "<div class='form-group'><label>Arac Markasi</label><select id='marka'>" + marka_opts + "</select></div>"
+    body += "<div class='form-group'><label>Model</label><input type='text' id='model' placeholder='Ornek: Clio, Focus'></div>"
+    body += "<div class='form-group'><label>Yil</label><select id='yil'>" + yil_opts + "</select></div>"
+    body += "<div class='form-group'><label>Paket</label><select id='paket'>" + pkg_opts + "</select></div>"
+    body += "<div class='form-group'><label>Notlar</label><textarea id='notlar' rows='2'></textarea></div>"
+    body += "<button class='btn' style='width:100%' onclick='submitR()'>Randevu Gonder</button>"
+    body += "</div></div>"
+    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "</body></html>"
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
