@@ -532,6 +532,7 @@ function renderCmpTable(){
 
   h += '</tbody></table>';
   el.innerHTML = h;
+  setTimeout(applyTooltips, 50);
 }
 
 // Modal disina tiklaninca kapat
@@ -667,21 +668,22 @@ def index():
 {terms_keys_js}
 function st(i){{var el=document.getElementById("tpop2");el.innerHTML="<b>"+TRK[i]+"</b><br>"+TR[TRK[i]]+'<br><span onclick="document.getElementById(\'tpop2\').style.display=\'none\'" style="color:#ffaaaa;cursor:pointer;font-size:12px">&#10005; Kapat</span>';el.style.display="block";}}
 document.addEventListener("click",function(e){{if(!e.target.closest("#tpop2")&&!e.target.closest(".tip2"))document.getElementById("tpop2").style.display="none";}});
-function applyTooltips(root){{
-  var sel=(root||document).querySelectorAll("td,th");
-  sel.forEach(function(el){{
+function applyTooltips(){{
+  var cmpEl=document.getElementById('cmpTable');
+  if(!cmpEl)return;
+  cmpEl.querySelectorAll('td').forEach(function(el){{
     if(el.querySelector('.tip2'))return;
     var h=el.innerHTML;
+    var changed=false;
     TRK.forEach(function(k,i){{
       if(h.indexOf(k)!==-1){{
-        h=h.replace(new RegExp(k.replace(/[.*+?^${{}}()|[\\]\\\\]/g,'\\\\$&'),'g'),'<span class="tip2" onclick="st('+i+')">'+k+'</span>');
+        h=h.split(k).join('<span class="tip2" onclick="st('+i+')">'+k+'</span>');
+        changed=true;
       }}
     }});
-    el.innerHTML=h;
+    if(changed)el.innerHTML=h;
   }});
 }}
-var _origRenderCmp=renderCmpTable;
-renderCmpTable=function(){{_origRenderCmp();setTimeout(function(){{applyTooltips(document.getElementById('cmpTable'));}},100);}};
 </script>
 </body></html>""")
     return html
