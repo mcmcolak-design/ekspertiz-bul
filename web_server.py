@@ -38,19 +38,23 @@ def load_firms():
         cur.close()
         conn.close()
         for f in db_firms:
+            keys = list(f.keys())
+            lat = float(f["lat"]) if "lat" in keys and f["lat"] else 0
+            lng = float(f["lng"]) if "lng" in keys and f["lng"] else 0
             firms.append({
                 "id": f"db_{f['id']}",
                 "name": f["unvan"],
-                "address": f["adres"],
+                "address": (f["adres"] or "") + (", " + f["ilce"] if f.get("ilce") else "") + (", " + f["il"] if f.get("il") else ""),
                 "phone": f["telefon"],
                 "website": "",
-                "lat": f["lat"] if "lat" in f.keys() else 0,
-                "lng": f["lng"] if "lng" in f.keys() else 0,
-                "city": f["il"] if "il" in f.keys() else "",
+                "lat": lat if lat else 39.9,
+                "lng": lng if lng else 32.8,
+                "city": f["il"] if "il" in keys and f["il"] else "",
                 "certified": False,
                 "rating": 0,
                 "reviews": 0,
                 "place_id": "",
+                "db_firm_id": f["id"],
             })
     except Exception as e:
         print(f"DB firms load error: {e}")
@@ -413,7 +417,7 @@ function render(){
         '<div class="pkgs">'+pk+'</div>'+
         '<div class="acts">'+
           '<a href="'+detayUrl+'" target="_blank" class="ag">&#128269; Detay</a>'+
-          '<a href="/giris" class="ag" style="background:#1a0000;border-color:#1a0000;color:#fff">&#128197; Randevu Al</a>'+
+          '<a href="/randevu/'+f.id+'" class="ag" style="background:#1a0000;border-color:#1a0000;color:#fff">&#128197; Randevu Al</a>'+
           '<button class="aw-map" onclick="goMap('+f.lat+','+f.lng+')">&#128205; Harita</button>'+
           '<button class="aw-dir" onclick="yol('+f.lat+','+f.lng+')">&#128388; Yol Tarifi</button>'+
           (f.phone?'<a href="tel:'+f.phone+'" class="aw-tel">&#128222; '+f.phone+'</a>':'')+
@@ -688,12 +692,24 @@ document.addEventListener('click', function(e){
 </html>"""
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+def index(session: str = Cookie(default=None)):
     firms = load_firms()
     prices = get_prices()
     firms_json = json.dumps(firms, ensure_ascii=False)
     prices_json = json.dumps(prices, ensure_ascii=False)
     html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
+    # Session durumuna gore header linklerini guncelle
+    s = get_session(session)
+    if s and s["role"] == "user":
+        html = html.replace(
+            '&#128274; Giris</a> &nbsp;|&nbsp; <a href="/kayit" style="color:#e53535;text-decoration:none">&#128100; Kayit Ol</a>',
+            '&#128100; Profilim</a> &nbsp;|&nbsp; <a href="/cikis" style="color:#e53535;text-decoration:none">&#128274; Cikis</a>'
+        ).replace('href="/giris"', 'href="/kullanici/panel"')
+    elif s and s["role"] == "firma":
+        html = html.replace(
+            '&#128274; Giris</a> &nbsp;|&nbsp; <a href="/kayit" style="color:#e53535;text-decoration:none">&#128100; Kayit Ol</a>',
+            '&#127970; Firma Paneli</a> &nbsp;|&nbsp; <a href="/cikis" style="color:#e53535;text-decoration:none">&#128274; Cikis</a>'
+        ).replace('href="/giris"', 'href="/firma/panel"')
     # Tooltip: paket isimlerinde gecen terimleri wrap et
     TERMS_PY = {
         "DYNO": "Dinamometre testi. Motorun gercek beygir gucu ve torkunu olcer.",
@@ -1623,3 +1639,58 @@ async def trigger_scrape():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/randevu/{firm_id}", response_class=HTMLResponse)
+def randevu_page(firm_id: str, session: str = Cookie(default=None)):
+    import datetime
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return RedirectResponse("/giris", status_code=303)
+    firm_db_id = None
+    firm_name = "Firma"
+    if firm_id.startswith("db_"):
+        try:
+            fid = int(firm_id.replace("db_", ""))
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (fid,))
+            firm = cur.fetchone()
+            cur.close(); conn.close()
+            if firm:
+                firm_name = firm["unvan"]
+                firm_db_id = fid
+        except Exception as e:
+            print(f"randevu_page: {e}")
+    if not firm_db_id:
+        return HTMLResponse("<p>Firma bulunamadi. <a href='/'>Ana Sayfa</a></p>", status_code=404)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (firm_db_id,))
+    paketler = cur.fetchall()
+    cur.close(); conn.close()
+    today = datetime.date.today().isoformat()
+    markalar = ["","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mazda","Mercedes-Benz","Nissan","Opel","Peugeot","Renault","Skoda","Toyota","Volkswagen","Diger"]
+    marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
+    yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
+    saat_opts = "".join(["<option value='"+str(h).zfill(2)+":00'>"+str(h).zfill(2)+":00</option>" for h in range(8,19)])
+    pkg_opts = "<option value=''>Paket secin (opsiyonel)</option>"
+    for p in paketler:
+        pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
+    fid_str = str(firm_db_id)
+    body = _base_style()
+    body += "<body>" + _topbar("Randevu Al", "/", "Ana Sayfa")
+    body += "<div class='wrap' style='max-width:500px'><div class='card'>"
+    body += "<h2>&#128197; " + firm_name + " - Randevu Al</h2><div id='msg'></div>"
+    body += "<div class='form-group'><label>Tarih</label><input type='date' id='tarih' min='" + today + "'></div>"
+    body += "<div class='form-group'><label>Saat</label><select id='saat'>" + saat_opts + "</select></div>"
+    body += "<div class='form-group'><label>Arac Markasi</label><select id='marka'>" + marka_opts + "</select></div>"
+    body += "<div class='form-group'><label>Model</label><input type='text' id='model' placeholder='Ornek: Clio, Focus'></div>"
+    body += "<div class='form-group'><label>Yil</label><select id='yil'>" + yil_opts + "</select></div>"
+    body += "<div class='form-group'><label>Paket</label><select id='paket'>" + pkg_opts + "</select></div>"
+    body += "<div class='form-group'><label>Notlar</label><textarea id='notlar' rows='2'></textarea></div>"
+    body += "<button class='btn' style='width:100%' onclick='submitR()'>Randevu Gonder</button>"
+    body += "</div></div>"
+    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "</body></html>"
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
