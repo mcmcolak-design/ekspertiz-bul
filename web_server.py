@@ -877,18 +877,21 @@ header p{color:#aaa;font-size:.85rem;margin-top:4px}
 
 def get_unread_count(firm_id):
     conn = get_conn()
-    n = conn.execute("SELECT COUNT(*) FROM notifications WHERE firm_id=? AND okundu=0", (firm_id,)).fetchone()[0]
-    conn.close()
-    return n
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM notifications WHERE firm_id=%s AND okundu=0", (firm_id,))
+    n = cur.fetchone()
+    cur.close(); conn.close()
+    return list(n.values())[0] if n else 0
 
 def add_notification(firm_id=None, user_id=None, tip="", mesaj="", appointment_id=None):
     conn = get_conn()
-    conn.execute(
-        "INSERT INTO notifications (firm_id, user_id, tip, mesaj, appointment_id) VALUES (?,?,?,?,?)",
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO notifications (firm_id, user_id, tip, mesaj, appointment_id) VALUES (%s,%s,%s,%s,%s)",
         (firm_id, user_id, tip, mesaj, appointment_id)
     )
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
 
 # ============================================================
 # AUTH ROUTES
@@ -913,34 +916,37 @@ async def kayit_post(
     ilce: str = Form(default="")
 ):
     conn = get_conn()
+    cur = conn.cursor()
     if tip == "kullanici":
-        ex = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
-        if ex:
-            conn.close()
+        cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+        if cur.fetchone():
+            cur.close(); conn.close()
             return _kayit_html(hata="Bu email zaten kayıtlı.")
-        conn.execute(
-            "INSERT INTO users (ad_soyad, email, telefon, sifre_hash) VALUES (?,?,?,?)",
+        cur.execute(
+            "INSERT INTO users (ad_soyad, email, telefon, sifre_hash) VALUES (%s,%s,%s,%s)",
             (ad_soyad, email, telefon, hash_password(sifre))
         )
         conn.commit()
-        user = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
-        conn.close()
+        cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+        user = cur.fetchone()
+        cur.close(); conn.close()
         token = create_session(user_id=user["id"], role="user")
         resp = RedirectResponse("/kullanici/panel", status_code=303)
         resp.set_cookie("session", token, max_age=604800, httponly=True)
         return resp
     else:
-        ex = conn.execute("SELECT id FROM firm_accounts WHERE email=?", (email,)).fetchone()
-        if ex:
-            conn.close()
+        cur.execute("SELECT id FROM firm_accounts WHERE email=%s", (email,))
+        if cur.fetchone():
+            cur.close(); conn.close()
             return _kayit_html(hata="Bu email zaten kayıtlı.")
-        conn.execute(
-            "INSERT INTO firm_accounts (unvan, yetkili_ad, yetkili_gorev, adres, il, ilce, telefon, email, sifre_hash) VALUES (?,?,?,?,?,?,?,?,?)",
+        cur.execute(
+            "INSERT INTO firm_accounts (unvan, yetkili_ad, yetkili_gorev, adres, il, ilce, telefon, email, sifre_hash) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (unvan, yetkili_ad, yetkili_gorev, adres, il, ilce, telefon, email, hash_password(sifre))
         )
         conn.commit()
-        firm = conn.execute("SELECT id FROM firm_accounts WHERE email=?", (email,)).fetchone()
-        conn.close()
+        cur.execute("SELECT id FROM firm_accounts WHERE email=%s", (email,))
+        firm = cur.fetchone()
+        cur.close(); conn.close()
         token = create_session(firm_id=firm["id"], role="firma")
         resp = RedirectResponse("/firma/panel", status_code=303)
         resp.set_cookie("session", token, max_age=604800, httponly=True)
@@ -953,9 +959,11 @@ def giris_page():
 @app.post("/giris", response_class=HTMLResponse)
 async def giris_post(tip: str = Form(...), email: str = Form(...), sifre: str = Form(...)):
     conn = get_conn()
+    cur = conn.cursor()
     if tip == "kullanici":
-        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-        conn.close()
+        cur.execute("SELECT * FROM users WHERE email=%s", (email,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
         if not row or not check_password(sifre, row["sifre_hash"]):
             return _giris_html(hata="Email veya şifre hatalı.")
         token = create_session(user_id=row["id"], role="user")
@@ -963,8 +971,9 @@ async def giris_post(tip: str = Form(...), email: str = Form(...), sifre: str = 
         resp.set_cookie("session", token, max_age=604800, httponly=True)
         return resp
     else:
-        row = conn.execute("SELECT * FROM firm_accounts WHERE email=?", (email,)).fetchone()
-        conn.close()
+        cur.execute("SELECT * FROM firm_accounts WHERE email=%s", (email,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
         if not row or not check_password(sifre, row["sifre_hash"]):
             return _giris_html(hata="Email veya şifre hatalı.")
         token = create_session(firm_id=row["id"], role="firma")
@@ -989,13 +998,16 @@ def kullanici_panel(session: str = Cookie(default=None)):
     if not s or s["role"] != "user":
         return RedirectResponse("/giris?tip=kullanici", status_code=303)
     conn = get_conn()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (s["user_id"],)).fetchone()
-    randevular = conn.execute("""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE id=%s", (s["user_id"],))
+    user = cur.fetchone()
+    cur.execute("""
         SELECT a.*, f.unvan as firma_unvan, f.telefon as firma_tel
         FROM appointments a JOIN firm_accounts f ON f.id=a.firm_id
-        WHERE a.user_id=? ORDER BY a.created_at DESC
-    """, (s["user_id"],)).fetchall()
-    conn.close()
+        WHERE a.user_id=%s ORDER BY a.created_at DESC
+    """, (s["user_id"],))
+    randevular = cur.fetchall()
+    cur.close(); conn.close()
     return _kullanici_panel_html(user, randevular)
 
 @app.post("/randevu/olustur")
@@ -1015,14 +1027,17 @@ async def randevu_olustur(
     if not s or s["role"] != "user":
         return JSONResponse({"error": "Giris gerekli"}, status_code=401)
     conn = get_conn()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (s["user_id"],)).fetchone()
-    firm = conn.execute("SELECT * FROM firm_accounts WHERE id=?", (firm_id,)).fetchone()
-    conn.execute(
-        "INSERT INTO appointments (user_id,firm_id,tarih,saat,arac_marka,arac_model,arac_yil,paket,notlar) VALUES (?,?,?,?,?,?,?,?,?)",
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE id=%s", (s["user_id"],))
+    user = cur.fetchone()
+    cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (firm_id,))
+    firm = cur.fetchone()
+    cur.execute(
+        "INSERT INTO appointments (user_id,firm_id,tarih,saat,arac_marka,arac_model,arac_yil,paket,notlar) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
         (s["user_id"], firm_id, tarih, saat, arac_marka, arac_model, arac_yil, paket, notlar)
     )
     conn.commit()
-    apt = conn.execute("SELECT last_insert_rowid() as id").fetchone()
+    apt = cur.fetchone()
     arac = f"{arac_marka} {arac_model} {arac_yil}".strip() or "Belirtilmedi"
     add_notification(
         firm_id=firm_id,
@@ -1045,19 +1060,24 @@ def firma_panel(session: str = Cookie(default=None)):
     if not s or s["role"] != "firma":
         return RedirectResponse("/giris?tip=firma", status_code=303)
     conn = get_conn()
-    firm = conn.execute("SELECT * FROM firm_accounts WHERE id=?", (s["firm_id"],)).fetchone()
-    randevular = conn.execute("""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (s["firm_id"],))
+    firm = cur.fetchone()
+    cur.execute("""
         SELECT a.*, u.ad_soyad, u.telefon as user_tel, u.email as user_email
         FROM appointments a JOIN users u ON u.id=a.user_id
-        WHERE a.firm_id=? ORDER BY a.tarih DESC, a.saat DESC
-    """, (s["firm_id"],)).fetchall()
-    bildirimler = conn.execute(
-        "SELECT * FROM notifications WHERE firm_id=? ORDER BY created_at DESC LIMIT 20",
+        WHERE a.firm_id=%s ORDER BY a.tarih DESC, a.saat DESC
+    """, (s["firm_id"],))
+    randevular = cur.fetchall()
+    cur.execute(
+        "SELECT * FROM notifications WHERE firm_id=%s ORDER BY created_at DESC LIMIT 20",
         (s["firm_id"],)
-    ).fetchall()
-    paketler = conn.execute("SELECT * FROM firm_packages WHERE firm_id=? AND aktif=1", (s["firm_id"],)).fetchall()
+    )
+    bildirimler = cur.fetchall()
+    cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (s["firm_id"],))
+    paketler = cur.fetchall()
     unread = get_unread_count(s["firm_id"])
-    conn.close()
+    cur.close(); conn.close()
     return _firma_panel_html(firm, randevular, bildirimler, paketler, unread)
 
 @app.post("/firma/randevu/guncelle")
@@ -1070,14 +1090,16 @@ async def randevu_guncelle(
     if not s or s["role"] != "firma":
         return JSONResponse({"error": "Yetkisiz"}, status_code=401)
     conn = get_conn()
-    conn.execute("UPDATE appointments SET durum=? WHERE id=? AND firm_id=?",
+    cur = conn.cursor()
+    cur.execute("UPDATE appointments SET durum=%s WHERE id=%s AND firm_id=%s",
                  (durum, appointment_id, s["firm_id"]))
-    apt = conn.execute("""
+    cur.execute("""
         SELECT a.*, u.email as user_email, u.ad_soyad, f.unvan
         FROM appointments a JOIN users u ON u.id=a.user_id
         JOIN firm_accounts f ON f.id=a.firm_id
-        WHERE a.id=?
-    """, (appointment_id,)).fetchone()
+        WHERE a.id=%s
+    """, (appointment_id,))
+    apt = cur.fetchone()
     if apt:
         add_notification(
             user_id=apt["user_id"],
@@ -1090,7 +1112,7 @@ async def randevu_guncelle(
             apt["tarih"], apt["saat"], durum
         )
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
     return JSONResponse({"success": True})
 
 @app.get("/firma/bildirimler", response_class=JSONResponse)
@@ -1099,13 +1121,15 @@ def firma_bildirimler(session: str = Cookie(default=None)):
     if not s or s["role"] != "firma":
         return JSONResponse({"count": 0, "items": []})
     conn = get_conn()
-    items = conn.execute(
-        "SELECT * FROM notifications WHERE firm_id=? AND okundu=0 ORDER BY created_at DESC",
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM notifications WHERE firm_id=%s AND okundu=0 ORDER BY created_at DESC",
         (s["firm_id"],)
-    ).fetchall()
-    conn.execute("UPDATE notifications SET okundu=1 WHERE firm_id=?", (s["firm_id"],))
+    )
+    items = cur.fetchall()
+    cur.execute("UPDATE notifications SET okundu=1 WHERE firm_id=%s", (s["firm_id"],))
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
     return JSONResponse({"count": len(items), "items": [dict(i) for i in items]})
 
 @app.post("/firma/paket/ekle")
@@ -1119,10 +1143,11 @@ async def paket_ekle(
     if not s or s["role"] != "firma":
         return JSONResponse({"error": "Yetkisiz"}, status_code=401)
     conn = get_conn()
-    conn.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, icerik) VALUES (?,?,?,?)",
+    cur = conn.cursor()
+    cur.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, icerik) VALUES (%s,%s,%s,%s)",
                  (s["firm_id"], paket_adi, fiyat, icerik))
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
     return JSONResponse({"success": True})
 
 @app.post("/firma/paket/sil")
@@ -1131,9 +1156,10 @@ async def paket_sil(paket_id: int = Form(...), session: str = Cookie(default=Non
     if not s or s["role"] != "firma":
         return JSONResponse({"error": "Yetkisiz"}, status_code=401)
     conn = get_conn()
-    conn.execute("UPDATE firm_packages SET aktif=0 WHERE id=? AND firm_id=?", (paket_id, s["firm_id"]))
+    cur = conn.cursor()
+    cur.execute("UPDATE firm_packages SET aktif=0 WHERE id=%s AND firm_id=%s", (paket_id, s["firm_id"]))
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
     return JSONResponse({"success": True})
 
 # ============================================================
