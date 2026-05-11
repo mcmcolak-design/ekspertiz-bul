@@ -21,11 +21,40 @@ DEFAULT_FIRMS = [
 ]
 
 def load_firms():
+    firms = []
     if FIRMS_JSON.exists():
         with open(FIRMS_JSON, "r", encoding="utf-8") as f:
-            firms = json.load(f)
-            return [fi for fi in firms if fi.get("lat") and fi.get("lng")]
-    return DEFAULT_FIRMS
+            firms = [fi for fi in json.load(f) if fi.get("lat") and fi.get("lng")]
+    else:
+        firms = list(DEFAULT_FIRMS)
+
+    # app.db'deki onaylanmis firmalari da ekle
+    try:
+        from models import get_conn as _get_conn
+        conn = _get_conn()
+        db_firms = conn.execute(
+            "SELECT * FROM firm_accounts WHERE active=1"
+        ).fetchall()
+        conn.close()
+        for f in db_firms:
+            firms.append({
+                "id": f"db_{f['id']}",
+                "name": f["unvan"],
+                "address": f["adres"],
+                "phone": f["telefon"],
+                "website": "",
+                "lat": f["lat"] if "lat" in f.keys() else 0,
+                "lng": f["lng"] if "lng" in f.keys() else 0,
+                "city": f["il"] if "il" in f.keys() else "",
+                "certified": False,
+                "rating": 0,
+                "reviews": 0,
+                "place_id": "",
+            })
+    except Exception as e:
+        print(f"DB firms load error: {e}")
+
+    return firms
 
 def get_prices():
     if not DB_PATH.exists():
@@ -859,7 +888,9 @@ async def kayit_post(
     unvan: str = Form(default=""),
     yetkili_ad: str = Form(default=""),
     yetkili_gorev: str = Form(default=""),
-    adres: str = Form(default="")
+    adres: str = Form(default=""),
+    il: str = Form(default=""),
+    ilce: str = Form(default="")
 ):
     conn = get_conn()
     if tip == "kullanici":
@@ -884,8 +915,8 @@ async def kayit_post(
             conn.close()
             return _kayit_html(hata="Bu email zaten kayıtlı.")
         conn.execute(
-            "INSERT INTO firm_accounts (unvan, yetkili_ad, yetkili_gorev, adres, telefon, email, sifre_hash) VALUES (?,?,?,?,?,?,?)",
-            (unvan, yetkili_ad, yetkili_gorev, adres, telefon, email, hash_password(sifre))
+            "INSERT INTO firm_accounts (unvan, yetkili_ad, yetkili_gorev, adres, il, ilce, telefon, email, sifre_hash) VALUES (?,?,?,?,?,?,?,?,?)",
+            (unvan, yetkili_ad, yetkili_gorev, adres, il, ilce, telefon, email, hash_password(sifre))
         )
         conn.commit()
         firm = conn.execute("SELECT id FROM firm_accounts WHERE email=?", (email,)).fetchone()
@@ -1193,7 +1224,94 @@ def _kayit_html(hata=None):
           <div class="form-group"><label>Yetkili Adı Soyadı</label><input type="text" name="yetkili_ad"></div>
           <div class="form-group"><label>Görevi</label>
             <select name="yetkili_gorev">{gorev_opts}</select></div>
-          <div class="form-group"><label>Adres</label><textarea name="adres" rows="2"></textarea></div>
+          <div class="form-group"><label>İl</label>
+            <select name="il" id="il-select" onchange="loadIlceler(this.value)">
+              <option value="">İl seçin...</option>
+              <option value="Adana">Adana</option>
+<option value="Adıyaman">Adıyaman</option>
+<option value="Afyonkarahisar">Afyonkarahisar</option>
+<option value="Aksaray">Aksaray</option>
+<option value="Amasya">Amasya</option>
+<option value="Ankara">Ankara</option>
+<option value="Antalya">Antalya</option>
+<option value="Ardahan">Ardahan</option>
+<option value="Artvin">Artvin</option>
+<option value="Aydın">Aydın</option>
+<option value="Ağrı">Ağrı</option>
+<option value="Balıkesir">Balıkesir</option>
+<option value="Bartın">Bartın</option>
+<option value="Batman">Batman</option>
+<option value="Bayburt">Bayburt</option>
+<option value="Bilecik">Bilecik</option>
+<option value="Bingöl">Bingöl</option>
+<option value="Bitlis">Bitlis</option>
+<option value="Bolu">Bolu</option>
+<option value="Burdur">Burdur</option>
+<option value="Bursa">Bursa</option>
+<option value="Denizli">Denizli</option>
+<option value="Diyarbakır">Diyarbakır</option>
+<option value="Düzce">Düzce</option>
+<option value="Edirne">Edirne</option>
+<option value="Elazığ">Elazığ</option>
+<option value="Erzincan">Erzincan</option>
+<option value="Erzurum">Erzurum</option>
+<option value="Eskişehir">Eskişehir</option>
+<option value="Gaziantep">Gaziantep</option>
+<option value="Giresun">Giresun</option>
+<option value="Gümüşhane">Gümüşhane</option>
+<option value="Hakkari">Hakkari</option>
+<option value="Hatay">Hatay</option>
+<option value="Isparta">Isparta</option>
+<option value="Iğdır">Iğdır</option>
+<option value="Kahramanmaraş">Kahramanmaraş</option>
+<option value="Karabük">Karabük</option>
+<option value="Karaman">Karaman</option>
+<option value="Kars">Kars</option>
+<option value="Kastamonu">Kastamonu</option>
+<option value="Kayseri">Kayseri</option>
+<option value="Kilis">Kilis</option>
+<option value="Kocaeli">Kocaeli</option>
+<option value="Konya">Konya</option>
+<option value="Kütahya">Kütahya</option>
+<option value="Kırklareli">Kırklareli</option>
+<option value="Kırıkkale">Kırıkkale</option>
+<option value="Kırşehir">Kırşehir</option>
+<option value="Malatya">Malatya</option>
+<option value="Manisa">Manisa</option>
+<option value="Mardin">Mardin</option>
+<option value="Mersin">Mersin</option>
+<option value="Muğla">Muğla</option>
+<option value="Muş">Muş</option>
+<option value="Nevşehir">Nevşehir</option>
+<option value="Niğde">Niğde</option>
+<option value="Ordu">Ordu</option>
+<option value="Osmaniye">Osmaniye</option>
+<option value="Rize">Rize</option>
+<option value="Sakarya">Sakarya</option>
+<option value="Samsun">Samsun</option>
+<option value="Siirt">Siirt</option>
+<option value="Sinop">Sinop</option>
+<option value="Sivas">Sivas</option>
+<option value="Tekirdağ">Tekirdağ</option>
+<option value="Tokat">Tokat</option>
+<option value="Trabzon">Trabzon</option>
+<option value="Tunceli">Tunceli</option>
+<option value="Uşak">Uşak</option>
+<option value="Van">Van</option>
+<option value="Yalova">Yalova</option>
+<option value="Yozgat">Yozgat</option>
+<option value="Zonguldak">Zonguldak</option>
+<option value="Çanakkale">Çanakkale</option>
+<option value="Çankırı">Çankırı</option>
+<option value="Çorum">Çorum</option>
+<option value="İstanbul">İstanbul</option>
+<option value="İzmir">İzmir</option>
+<option value="Şanlıurfa">Şanlıurfa</option>
+<option value="Şırnak">Şırnak</option>
+            </select></div>
+          <div class="form-group"><label>İlçe</label>
+            <input type="text" name="ilce" id="ilce-input" placeholder="İlçe giriniz"></div>
+          <div class="form-group"><label>Açık Adres</label><textarea name="adres" rows="2" placeholder="Mahalle, cadde, sokak..."></textarea></div>
           <div class="form-group"><label>Telefon</label><input type="tel" name="telefon"></div>
         </div>
         <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
