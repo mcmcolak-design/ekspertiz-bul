@@ -1600,15 +1600,17 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
             onay_btns = ""
         iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">&#128222; Musteri</button>'
         saat_btn = ""
+        iptal_btn = ""
         if r["durum"] not in ["tamamlandi","iptal"]:
             saat_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaSaatDegistir({rid})">&#128336; Saat</button>'
+            iptal_btn = f'<button class="btn-red" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaIptal({rid})">&#10060; Iptal</button>'
         rows += f"""<tr>
           <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">&#128222; {r['user_tel'] or 'Tel yok'}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
           <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
           <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
-          <td style="padding:8px">{onay_btns}<br>{iletisim_btn}<br>{saat_btn}</td>
+          <td style="padding:8px">{onay_btns}<br>{iletisim_btn}<br>{saat_btn}<br>{iptal_btn}</td>
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
@@ -1763,6 +1765,13 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         if(d.error){{alert(d.error);return;}}
         alert('Musteri: '+d.ad+' | Tel: '+d.telefon+' | Email: '+d.email);
       }});
+    }}
+    function firmaIptal(id){{
+      if(!confirm('Randevuyu iptal etmek istediginize emin misiniz? Musteri bilgilendirilecek.'))return;
+      var fd=new FormData();fd.append('appointment_id',id);
+      fetch('/randevu/iptal',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{if(d.success)location.reload();else alert(d.error);}});
     }}
     function firmaSaatDegistir(id){{
       var tarih=prompt('Yeni tarih (YYYY-MM-DD):');
@@ -2002,6 +2011,7 @@ async def randevu_iptal(
     appointment_id: int = Form(...),
     session: str = Cookie(default=None)
 ):
+    import datetime
     s = get_session(session)
     if not s:
         return JSONResponse({"error": "Giris gerekli"}, status_code=401)
@@ -2018,15 +2028,58 @@ async def randevu_iptal(
     if apt["durum"] in ["tamamlandi", "iptal"]:
         cur.close(); conn.close()
         return JSONResponse({"error": "Bu randevu iptal edilemez"})
+    # 24 saat kontrolu
+    try:
+        apt_dt = datetime.datetime.strptime(f"{apt['tarih']} {apt['saat']}", "%Y-%m-%d %H:%M")
+        kalan = apt_dt - datetime.datetime.now()
+        if kalan.total_seconds() < 86400:  # 24 saat = 86400 saniye
+            cur.close(); conn.close()
+            return JSONResponse({"error": f"Randevuya 24 saatten az kaldi. Iptal icin en gec {(apt_dt - datetime.timedelta(hours=24)).strftime('%d.%m.%Y %H:%M')} olmasi gerekiyor."})
+    except Exception as e:
+        print(f"24h check error: {e}")
     cur.execute("UPDATE appointments SET durum='iptal' WHERE id=%s", (appointment_id,))
-    # Karsi tarafa bildirim
+    # Karsi tarafa bildirim ve email
     if s["role"] == "user":
-        cur.execute("SELECT unvan FROM firm_accounts WHERE id=%s", (apt["firm_id"],))
+        cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (apt["firm_id"],))
         firm = cur.fetchone()
-        add_notification(firm_id=apt["firm_id"], tip="iptal", mesaj=f"Randevu iptal edildi: {apt['tarih']} {apt['saat']}", appointment_id=appointment_id)
+        cur.execute("SELECT * FROM users WHERE id=%s", (s["user_id"],))
+        user = cur.fetchone()
+        add_notification(firm_id=apt["firm_id"], tip="iptal",
+                        mesaj=f"Randevu iptal edildi: {user['ad_soyad']} - {apt['tarih']} {apt['saat']}",
+                        appointment_id=appointment_id)
+        if firm:
+            from notifications import send_email
+            send_email(firm["email"], f"Randevu Iptal - {user['ad_soyad']}",
+                f"""<div style='font-family:Arial;max-width:500px;margin:0 auto'>
+                <div style='background:#1a0000;color:#fff;padding:20px;text-align:center;border-radius:10px 10px 0 0'>
+                <h2>EkspertizBul - Randevu Iptal</h2></div>
+                <div style='padding:20px;background:#fff;border:1px solid #eee'>
+                <p>Merhaba <b>{firm['unvan']}</b>,</p>
+                <p><b>{user['ad_soyad']}</b> adli musteri randevusunu iptal etti.</p>
+                <p>Tarih: <b>{apt['tarih']} - {apt['saat']}</b></p>
+                <p>Arac: {apt.get('arac_marka','')} {apt.get('arac_model','')} {apt.get('arac_yil','')}</p>
+                </div></div>""")
     else:
-        cur.execute("SELECT ad_soyad FROM users WHERE id=%s", (apt["user_id"],))
-        add_notification(user_id=apt["user_id"], tip="iptal", mesaj=f"Randevunuz iptal edildi: {apt['tarih']} {apt['saat']}", appointment_id=appointment_id)
+        cur.execute("SELECT * FROM users WHERE id=%s", (apt["user_id"],))
+        user = cur.fetchone()
+        cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (s["firm_id"],))
+        firm = cur.fetchone()
+        add_notification(user_id=apt["user_id"], tip="iptal",
+                        mesaj=f"Randevunuz iptal edildi: {firm['unvan'] if firm else ''} - {apt['tarih']} {apt['saat']}",
+                        appointment_id=appointment_id)
+        if user and user.get("email"):
+            from notifications import send_email
+            firma_adi = firm["unvan"] if firm else "Firma"
+            send_email(user["email"], f"Randevunuz Iptal Edildi - {firma_adi}",
+                f"""<div style='font-family:Arial;max-width:500px;margin:0 auto'>
+                <div style='background:#1a0000;color:#fff;padding:20px;text-align:center;border-radius:10px 10px 0 0'>
+                <h2>EkspertizBul - Randevu Iptal</h2></div>
+                <div style='padding:20px;background:#fff;border:1px solid #eee'>
+                <p>Merhaba <b>{user['ad_soyad']}</b>,</p>
+                <p><b>{firma_adi}</b> randevunuzu iptal etti.</p>
+                <p>Tarih: <b>{apt['tarih']} - {apt['saat']}</b></p>
+                <p>Yeni randevu almak icin <a href='https://ekspertiz-bul.onrender.com'>sitemizi ziyaret edin</a>.</p>
+                </div></div>""")
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
