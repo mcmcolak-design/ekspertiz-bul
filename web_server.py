@@ -1339,8 +1339,6 @@ def _kayit_html(hata=None):
     h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
     gorevler = ["İş Yeri Sahibi","Müdür","Yetkili Personel","Şube Müdürü","Diğer"]
     gorev_opts = "".join([f'<option>{g}</option>' for g in gorevler])
-    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
-    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Kayıt - EkspertizBul</title>{_base_style()}</head><body>
@@ -1483,10 +1481,10 @@ def _kullanici_panel_html(user, randevular):
             if r['durum'] == 'beklemede':
                 aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='saatDegistir({rid})'>Saat</button> "
         if r['durum'] == 'onaylandi':
-            aksiyonlar += f"<button class='btn-green' style='font-size:.72rem;padding:4px 8px' onclick='hizmetAldim({rid})'>✅ Hizmet Aldım</button> "
+            aksiyonlar += f"<button class='btn-green' style='font-size:.72rem;padding:4px 8px' onclick='hizmetAldim({rid})'>&#9989; Hizmet Aldim</button> "
         aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='iletisim({rid})'>📞</button> "
         if r['durum'] == 'tamamlandi':
-            aksiyonlar += f"<a href='/randevu/{rid}/puan' class='btn-green' style='font-size:.72rem;padding:4px 8px;text-decoration:none'>⭐ Puan</a>"
+            aksiyonlar += f"<a href='/randevu/{rid}/puan' class='btn-green' style='font-size:.72rem;padding:4px 8px;text-decoration:none'>&#11088; Puan</a>"
         rows += f"""<tr>
           <td style="padding:8px">{r['firma_unvan']}</td>
           <td style="padding:8px">{r['tarih']} {r['saat']}</td>
@@ -1497,22 +1495,19 @@ def _kullanici_panel_html(user, randevular):
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
-    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
-    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
-    return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    return f"""<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
     <title>Profilim - EkspertizBul</title>{_base_style()}</head><body>
     {_topbar("", "/", "Ana Sayfa")}
     <div class="wrap">
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
-          <h2>👤 Hoşgeldin, {user['ad_soyad']}</h2>
+          <h2>&#128100; Hosgeldin, {user['ad_soyad']}</h2>
           <p style="font-size:.85rem;color:#666">{user['email']}</p>
         </div>
         <a href='/kullanici/profil' class='btn-outline' style='font-size:.82rem'>&#9998; Profili Duzenle</a>
       </div>
       <div class="card">
-        <h2>📅 Randevularım</h2>
+        <h2>&#128197; Randevularim</h2>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:.82rem">
           <thead><tr style="background:#f5f0f0">
@@ -1530,7 +1525,7 @@ def _kullanici_panel_html(user, randevular):
     <!-- Iletisim Modal -->
     <div id="iletisimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;width:90%;max-width:380px;padding:24px;text-align:center">
-        <h3 style="margin-bottom:16px">📞 İletişim Bilgisi</h3>
+        <h3 style="margin-bottom:16px">&#128222; Iletisim Bilgisi</h3>
         <div id="iletisimBilgi"></div>
         <button onclick="document.getElementById('iletisimModal').style.display='none'" class="btn" style="margin-top:16px;width:100%">Kapat</button>
       </div>
@@ -1538,7 +1533,7 @@ def _kullanici_panel_html(user, randevular):
     <!-- Saat Degisiklik Modal -->
     <div id="saatModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;width:90%;max-width:380px;padding:24px">
-        <h3 style="margin-bottom:16px">🕐 Saat Değişikliği</h3>
+        <h3 style="margin-bottom:16px">&#128336; Saat Degisikligi</h3>
         <input type="hidden" id="saatAptId">
         <div class="form-group"><label>Yeni Tarih</label><input type="date" id="yeniTarih"></div>
         <div class="form-group"><label>Yeni Saat</label>
@@ -1600,15 +1595,15 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         if r["durum"] == "beklemede":
             onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'onaylandi\')">Onayla</button> <button class="btn-red" onclick="updateApt({rid},\'reddedildi\')" style="margin-left:4px">Reddet</button>'
         elif r["durum"] == "onaylandi":
-            onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">✅ Onaylandi - musteri tamamlayacak</span>'
+            onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">&#9989; Onaylandi - musteri tamamlayacak</span>'
         else:
             onay_btns = ""
-        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">📞 Musteri</button>'
+        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">&#128222; Musteri</button>'
         saat_btn = ""
         if r["durum"] not in ["tamamlandi","iptal"]:
-            saat_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaSaatDegistir({rid})">🕐 Saat</button>'
+            saat_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaSaatDegistir({rid})">&#128336; Saat</button>'
         rows += f"""<tr>
-          <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">📞 {r['user_tel'] or 'Tel yok'}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
+          <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">&#128222; {r['user_tel'] or 'Tel yok'}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
           <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
@@ -1648,7 +1643,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     <div id="notifModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;width:92%;max-width:500px;max-height:80vh;overflow:auto;padding:20px;position:relative">
         <button onclick="document.getElementById('notifModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:1.3rem;cursor:pointer">✕</button>
-        <h3 style="margin-bottom:14px;color:#1a0000">🔔 Bildirimler</h3>
+        <h3 style="margin-bottom:14px;color:#1a0000">&#128276; Bildirimler</h3>
         <div id="notifList"></div>
       </div>
     </div>
@@ -1660,19 +1655,19 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
           <div style="font-size:.82rem;color:#666">{firm['yetkili_ad']} - {firm['yetkili_gorev']}</div>
           {durum_notu_html}
         </div>
-        <button class="btn" onclick="showNotifs()">🔔 Bildirimler{notif_badge}</button>
+        <button class="btn" onclick="showNotifs()">&#128276; Bildirimler{notif_badge}</button>
       </div>
 
       <div class="tabs">
-        <button class="tab on" onclick="showTab('randevular',this)">📅 Randevular</button>
-        <button class="tab" onclick="showTab('paketler',this)">💰 Paketlerim</button>
-        <button class="tab" onclick="showTab('profil',this)">⚙️ Profil</button>
-      <a href="/firma/calisma-saatleri" class="tab">🕐 Calisma Saatleri</a>
+        <button class="tab on" onclick="showTab('randevular',this)">&#128197; Randevular</button>
+        <button class="tab" onclick="showTab('paketler',this)">&#128176; Paketlerim</button>
+        <button class="tab" onclick="showTab('profil',this)">&#9881; Profil</button>
+      <a href="/firma/calisma-saatleri" class="tab">&#128336; Calisma Saatleri</a>
       </div>
 
       <!-- RANDEVULAR -->
       <div id="tab-randevular" class="tab-content on card">
-        <h2>📅 Randevular</h2>
+        <h2>&#128197; Randevular</h2>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:.82rem">
           <thead><tr style="background:#f5f0f0">
@@ -1689,7 +1684,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
 
       <!-- PAKETLER -->
       <div id="tab-paketler" class="tab-content card">
-        <h2>💰 Paketlerim</h2>
+        <h2>&#128176; Paketlerim</h2>
         <table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">
           <thead><tr style="background:#f5f0f0">
             <th style="padding:8px;text-align:left">Paket</th>
@@ -1808,7 +1803,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         .then(function(data){{
           var dot=document.querySelector('.notif-dot');
           if(data.count>0&&!dot){{
-            document.querySelector('[onclick="showNotifs()"]').innerHTML='🔔 Bildirimler<span class="notif-dot">'+data.count+'</span>';
+            document.querySelector('[onclick="showNotifs()"]').innerHTML='&#128276; Bildirimler<span class="notif-dot">'+data.count+'</span>';
           }}
         }});
     }}, 30000);
@@ -1965,7 +1960,7 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     cur2.close(); conn2.close()
     if firm_status and firm_status["durum"] == "pasif":
         notu = firm_status["durum_notu"] or "Firma su an randevu almiyor."
-        return HTMLResponse(f"<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><title>Firma Kapali</title>{_base_style()}</head><body>{_topbar('', '/', 'Ana Sayfa')}<div class='wrap' style='max-width:500px'><div class='card' style='text-align:center'><div style='font-size:3rem'>🔴</div><h2 style='margin:16px 0'>Firma Su An Kapali</h2><p style='color:#666'>{notu}</p><a href='/' class='btn' style='display:inline-block;margin-top:16px'>Ana Sayfaya Don</a></div></div></body></html>")
+        return HTMLResponse(f"<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><title>Firma Kapali</title>{_base_style()}</head><body>{_topbar('', '/', 'Ana Sayfa')}<div class='wrap' style='max-width:500px'><div class='card' style='text-align:center'><div style='font-size:3rem'>&#128308;</div><h2 style='margin:16px 0'>Firma Su An Kapali</h2><p style='color:#666'>{notu}</p><a href='/' class='btn' style='display:inline-block;margin-top:16px'>Ana Sayfaya Don</a></div></div></body></html>")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (firm_db_id,))
@@ -2159,7 +2154,7 @@ def puan_sayfasi(appointment_id: int, session: str = Cookie(default=None)):
 
     body = _base_style() + "<body>" + _topbar("Puan Ver", "/kullanici/panel", "Panelim")
     body += f"<div class='wrap' style='max-width:500px'><div class='card'>"
-    body += f"<h2>⭐ {apt['unvan']} - Degerlendirme</h2>"
+    body += f"<h2>&#11088; {apt['unvan']} - Degerlendirme</h2>"
     body += f"<p style='font-size:.82rem;color:#888;margin-bottom:16px'>{apt['tarih']} {apt['saat']} randevusu</p>"
     body += "<div id='msg'></div>"
     body += kriter_html
@@ -2312,13 +2307,13 @@ def calisma_saatleri_page(session: str = Cookie(default=None)):
 
     body = _base_style() + "<body>" + _topbar("Calisma Saatleri", "/firma/panel", "Panelim")
     body += "<div class='wrap' style='max-width:600px'>"
-    body += "<div class='card'><h2>🔴 Firma Durumu</h2>"
+    body += "<div class='card'><h2>&#128308; Firma Durumu</h2>"
     body += "<div id='msg'></div>"
-    body += f"<div class='form-group'><label>Durum</label><select id='durum'><option value='aktif' {durum_aktif}>✅ Aktif - Randevu Aliniyor</option><option value='pasif' {durum_pasif}>🔴 Pasif - Randevu Kapali</option></select></div>"
+    body += f"<div class='form-group'><label>Durum</label><select id='durum'><option value='aktif' {durum_aktif}>&#9989; Aktif - Randevu Aliniyor</option><option value='pasif' {durum_pasif}>🔴 Pasif - Randevu Kapali</option></select></div>"
     body += f"<div class='form-group'><label>Durum Notu (musterilere gorulecek)</label><input type='text' id='durum_notu' value='{durum_notu}' placeholder='Ornek: Izin nedeniyle 3 gun kapali'></div>"
     body += "<button class='btn' onclick='durumGuncelle()'>Durumu Guncelle</button>"
     body += "</div>"
-    body += "<div class='card'><h2>🕐 Calisma Saatleri</h2>"
+    body += "<div class='card'><h2>&#128336; Calisma Saatleri</h2>"
     body += "<form method='post' action='/firma/calisma-saatleri'>"
     body += "<table style='width:100%;border-collapse:collapse;font-size:.85rem'>"
     body += "<thead><tr style='background:#f5f0f0'><th style='padding:8px;text-align:left'>Gun</th><th style='padding:8px'>Acilis</th><th></th><th style='padding:8px'>Kapanis</th><th style='padding:8px'>Durum</th></tr></thead>"
