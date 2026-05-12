@@ -415,7 +415,7 @@ function render(){
         '<div class="ct"><div>'+
           '<div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+(f.durum==='pasif'?'<span style="background:#dc3545;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:4px">KAPALI</span>':'<span style="background:#28a745;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:4px">ACIK</span>')+'</div>'+
           '<div class="fm">'+(stars?'<span class="stars">'+stars+'</span> '+f.rating+' ('+(f.reviews||0)+') ':'')+
-          (f.city||'')+(f.address?' \u2022 '+f.address:'')+(f.phone?' \u2022 <a href="tel:'+f.phone+'" style="color:#c41c1c;text-decoration:none">'+f.phone+'</a>':'')+'</div>'+
+          (f.city||'')+(f.address?' \u2022 '+f.address:'')+(f.phone?' \u2022 <a href="tel:'+f.phone+'" style="color:#c41c1c;text-decoration:none">'+f.phone+'</a>':'')+(f.durum_notu?'<br><span style="color:#dc3545;font-size:.75rem">&#128226; '+f.durum_notu+'</span>':'')+'</div>'+
         '</div>'+(ds?'<div class="db'+(nr?' nr':'')+'">'+ds+'</div>':'')+
         '</div>'+
         '<div class="pkgs">'+pk+'</div>'+
@@ -1443,7 +1443,7 @@ def _kullanici_panel_html(user, randevular):
           <td style="padding:8px">{aksiyonlar}</td>
         </tr>"""
     if not rows:
-        rows = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
+        rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Profilim - EkspertizBul</title>{_base_style()}</head><body>
@@ -1543,7 +1543,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         if r["durum"] not in ["tamamlandi","iptal"]:
             saat_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaSaatDegistir({rid})">🕐 Saat</button>'
         rows += f"""<tr>
-          <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">{r['user_tel'] or ''}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
+          <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">📞 {r['user_tel'] or 'Tel yok'}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
           <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
