@@ -1749,10 +1749,6 @@ async def firma_profil_guncelle(
     cur.close(); conn.close()
     return JSONResponse({"success": True})
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
 @app.get("/randevu/{firm_id}", response_class=HTMLResponse)
 def randevu_page(firm_id: str, session: str = Cookie(default=None)):
@@ -1807,3 +1803,7 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
     body += "</body></html>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
