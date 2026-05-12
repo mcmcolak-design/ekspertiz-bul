@@ -1505,6 +1505,7 @@ def _kullanici_panel_html(user, randevular):
           <p style="font-size:.85rem;color:#666">{user['email']}</p>
         </div>
         <a href='/kullanici/profil' class='btn-outline' style='font-size:.82rem'>&#9998; Profili Duzenle</a>
+        <a href='/mesajlarim' class='btn-outline' style='font-size:.82rem;margin-left:8px'>&#128172; Mesajlarim</a>
       </div>
       <div class="card">
         <h2>&#128197; Randevularim</h2>
@@ -1665,6 +1666,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         <button class="tab" onclick="showTab('paketler',this)">&#128176; Paketlerim</button>
         <button class="tab" onclick="showTab('profil',this)">&#9881; Profil</button>
       <a href="/firma/calisma-saatleri" class="tab">&#128336; Calisma Saatleri</a>
+      <a href="/mesajlarim" class="tab">&#128172; Mesajlarim</a>
       </div>
 
       <!-- RANDEVULAR -->
@@ -2467,6 +2469,442 @@ async def kullanici_tamamla(
     cur.close(); conn.close()
     return JSONResponse({"success": True})
 
+
+
+# ============================================================
+# ADMIN SISTEMI
+# ============================================================
+
+ADMIN_EMAIL = "mcolakai@gmail.com"
+ADMIN_SIFRE = "ekspertiz2024admin"  # Ilk giris sonrasi degistirin
+
+def ensure_admin():
+    """Admin yoksa olustur"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM admins WHERE email=%s", (ADMIN_EMAIL,))
+        if not cur.fetchone():
+            cur.execute("INSERT INTO admins (email, sifre_hash, ad) VALUES (%s,%s,%s)",
+                       (ADMIN_EMAIL, hash_password(ADMIN_SIFRE), "Admin"))
+            conn.commit()
+            print("Admin olusturuldu:", ADMIN_EMAIL)
+        cur.close(); conn.close()
+    except Exception as e:
+        print(f"ensure_admin error: {e}")
+
+ensure_admin()
+
+@app.get("/admin/giris", response_class=HTMLResponse)
+def admin_giris_page():
+    body = _base_style() + "<body>" + _topbar("Admin", "/", "Ana Sayfa")
+    body += """<div class='wrap' style='max-width:400px'>
+    <div class='card'><h2>&#128272; Admin Girisi</h2>
+    <div id='msg'></div>
+    <div class='form-group'><label>Email</label><input type='email' id='email'></div>
+    <div class='form-group'><label>Sifre</label><input type='password' id='sifre'></div>
+    <button class='btn' style='width:100%' onclick='giris()'>Giris Yap</button>
+    </div></div>
+    <script>
+    function giris(){
+      var fd=new FormData();
+      fd.append('email',document.getElementById('email').value);
+      fd.append('sifre',document.getElementById('sifre').value);
+      fetch('/admin/giris',{method:'POST',body:fd})
+        .then(r=>r.json())
+        .then(d=>{
+          if(d.success)window.location.href='/admin/panel';
+          else document.getElementById('msg').innerHTML='<div class="alert alert-error">'+d.error+'</div>';
+        });
+    }
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Admin</title>" + body)
+
+@app.post("/admin/giris")
+async def admin_giris_post(email: str = Form(...), sifre: str = Form(...)):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admins WHERE email=%s", (email,))
+    admin = cur.fetchone()
+    cur.close(); conn.close()
+    if not admin or not check_password(sifre, admin["sifre_hash"]):
+        return JSONResponse({"error": "Email veya sifre hatali"})
+    token = create_session(user_id=admin["id"], role="admin")
+    resp = JSONResponse({"success": True})
+    resp.set_cookie("session", token, max_age=604800, httponly=True)
+    return resp
+
+@app.get("/admin/panel", response_class=HTMLResponse)
+def admin_panel(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT m.*, 
+               (SELECT COUNT(*) FROM admin_chat c WHERE c.ticket_id=m.id) as mesaj_sayisi
+        FROM admin_messages m ORDER BY m.created_at DESC
+    """)
+    tickets = cur.fetchall()
+    # Istatistikler
+    cur.execute("SELECT COUNT(*) as n FROM users")
+    user_count = cur.fetchone()["n"]
+    cur.execute("SELECT COUNT(*) as n FROM firm_accounts")
+    firm_count = cur.fetchone()["n"]
+    cur.execute("SELECT COUNT(*) as n FROM appointments")
+    apt_count = cur.fetchone()["n"]
+    cur.execute("SELECT COUNT(*) as n FROM admin_messages WHERE okundu=FALSE")
+    unread_count = cur.fetchone()["n"]
+    cur.close(); conn.close()
+
+    ticket_rows = ""
+    for t in tickets:
+        badge = "badge-beklemede" if not t["cevaplandi"] else "badge-tamamlandi"
+        durum = "Bekliyor" if not t["cevaplandi"] else "Cevaplandi"
+        okundu_style = "font-weight:700" if not t["okundu"] else ""
+        ticket_rows += f"""<tr onclick="window.location='/admin/mesaj/{t['id']}'" style="cursor:pointer">
+          <td style="padding:8px;{okundu_style}">{t['sender_name']}</td>
+          <td style="padding:8px;{okundu_style}">{t['sender_type']}</td>
+          <td style="padding:8px;{okundu_style}">{t['konu']}</td>
+          <td style="padding:8px">{t['mesaj_sayisi']} mesaj</td>
+          <td style="padding:8px"><span class="badge {badge}">{durum}</span></td>
+          <td style="padding:8px;color:#888;font-size:.75rem">{str(t['created_at'])[:16]}</td>
+        </tr>"""
+
+    if not ticket_rows:
+        ticket_rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henuz mesaj yok</td></tr>'
+
+    body = _base_style() + "<body>" + _topbar("Admin Panel", "/", "Ana Sayfa")
+    body += f"""<div class='wrap'>
+      <div style='display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px'>
+        <div class='card' style='flex:1;min-width:120px;text-align:center'>
+          <div style='font-size:1.8rem;font-weight:800;color:#e53535'>{user_count}</div>
+          <div style='font-size:.8rem;color:#888'>Kullanici</div>
+        </div>
+        <div class='card' style='flex:1;min-width:120px;text-align:center'>
+          <div style='font-size:1.8rem;font-weight:800;color:#e53535'>{firm_count}</div>
+          <div style='font-size:.8rem;color:#888'>Firma</div>
+        </div>
+        <div class='card' style='flex:1;min-width:120px;text-align:center'>
+          <div style='font-size:1.8rem;font-weight:800;color:#e53535'>{apt_count}</div>
+          <div style='font-size:.8rem;color:#888'>Randevu</div>
+        </div>
+        <div class='card' style='flex:1;min-width:120px;text-align:center'>
+          <div style='font-size:1.8rem;font-weight:800;color:#e53535'>{unread_count}</div>
+          <div style='font-size:.8rem;color:#888'>Okunmamis Mesaj</div>
+        </div>
+      </div>
+      <div class='card'>
+        <h2>&#128172; Mesajlar</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px;text-align:left'>Gonderen</th>
+            <th style='padding:8px;text-align:left'>Tip</th>
+            <th style='padding:8px;text-align:left'>Konu</th>
+            <th style='padding:8px;text-align:left'>Mesajlar</th>
+            <th style='padding:8px;text-align:left'>Durum</th>
+            <th style='padding:8px;text-align:left'>Tarih</th>
+          </tr></thead>
+          <tbody>{ticket_rows}</tbody>
+        </table></div>
+      </div>
+    </div></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Admin Panel</title>" + body)
+
+@app.get("/admin/mesaj/{ticket_id}", response_class=HTMLResponse)
+def admin_mesaj_detay(ticket_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admin_messages WHERE id=%s", (ticket_id,))
+    ticket = cur.fetchone()
+    if not ticket:
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Mesaj bulunamadi</p>", status_code=404)
+    cur.execute("UPDATE admin_messages SET okundu=TRUE WHERE id=%s", (ticket_id,))
+    cur.execute("SELECT * FROM admin_chat WHERE ticket_id=%s ORDER BY created_at", (ticket_id,))
+    chats = cur.fetchall()
+    conn.commit()
+    cur.close(); conn.close()
+
+    chat_html = ""
+    for c in chats:
+        is_admin = c["gonderen"] == "admin"
+        align = "flex-end" if is_admin else "flex-start"
+        bg = "#e53535" if is_admin else "#f0f0f0"
+        color = "#fff" if is_admin else "#333"
+        label = "Admin" if is_admin else ticket["sender_name"]
+        chat_html += f"""<div style='display:flex;flex-direction:column;align-items:{align};margin-bottom:12px'>
+          <div style='font-size:.72rem;color:#888;margin-bottom:3px'>{label} - {str(c['created_at'])[:16]}</div>
+          <div style='background:{bg};color:{color};padding:10px 14px;border-radius:12px;max-width:80%;font-size:.85rem'>{c['mesaj']}</div>
+        </div>"""
+
+    if not chat_html:
+        chat_html = f"""<div style='padding:16px;background:#f5f0f0;border-radius:8px;margin-bottom:16px'>
+          <b>Ilk Mesaj:</b> {ticket['mesaj']}
+        </div>"""
+
+    body = _base_style() + "<body>" + _topbar("Mesaj Detay", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap' style='max-width:700px'>
+      <div class='card'>
+        <h2>&#128172; {ticket['konu']}</h2>
+        <p style='font-size:.82rem;color:#888;margin-bottom:16px'>
+          {ticket['sender_name']} ({ticket['sender_type']}) - {str(ticket['created_at'])[:16]}
+        </p>
+        <div style='height:400px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:14px;margin-bottom:16px' id='chatbox'>
+          {chat_html}
+        </div>
+        <div style='display:flex;gap:8px'>
+          <textarea id='cevap' rows='3' style='flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-family:inherit;font-size:.85rem' placeholder='Cevabinizi yazin...'></textarea>
+          <button class='btn' onclick='adminCevapla()' style='align-self:flex-end'>Gonder</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    function adminCevapla(){{
+      var msg=document.getElementById('cevap').value.trim();
+      if(!msg)return;
+      var fd=new FormData();
+      fd.append('ticket_id','{ticket_id}');
+      fd.append('mesaj',msg);
+      fetch('/admin/cevapla',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    document.getElementById('chatbox').scrollTop=document.getElementById('chatbox').scrollHeight;
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Mesaj</title>" + body)
+
+@app.post("/admin/cevapla")
+async def admin_cevapla(
+    ticket_id: int = Form(...),
+    mesaj: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admin_messages WHERE id=%s", (ticket_id,))
+    ticket = cur.fetchone()
+    if not ticket:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Mesaj bulunamadi"})
+    cur.execute("INSERT INTO admin_chat (ticket_id, gonderen, mesaj) VALUES (%s,'admin',%s)",
+               (ticket_id, mesaj))
+    cur.execute("UPDATE admin_messages SET cevaplandi=TRUE, updated_at=NOW() WHERE id=%s", (ticket_id,))
+    # Gondericiye bildirim
+    if ticket["sender_type"] == "kullanici":
+        add_notification(user_id=ticket["sender_id"], tip="admin_cevap",
+                        mesaj=f"Admin mesajinizi cevapladi: {ticket['konu']}")
+    else:
+        add_notification(firm_id=ticket["sender_id"], tip="admin_cevap",
+                        mesaj=f"Admin mesajinizi cevapladi: {ticket['konu']}")
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/mesaj/admin-gonder")
+async def mesaj_admin_gonder(
+    konu: str = Form(...),
+    mesaj: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s:
+        return JSONResponse({"error": "Giris gerekli"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT ad_soyad FROM users WHERE id=%s", (s["user_id"],))
+        row = cur.fetchone()
+        sender_name = row["ad_soyad"] if row else "Kullanici"
+        sender_id = s["user_id"]
+        sender_type = "kullanici"
+    else:
+        cur.execute("SELECT unvan FROM firm_accounts WHERE id=%s", (s["firm_id"],))
+        row = cur.fetchone()
+        sender_name = row["unvan"] if row else "Firma"
+        sender_id = s["firm_id"]
+        sender_type = "firma"
+    cur.execute(
+        "INSERT INTO admin_messages (sender_type, sender_id, sender_name, konu, mesaj) VALUES (%s,%s,%s,%s,%s)",
+        (sender_type, sender_id, sender_name, konu, mesaj)
+    )
+    conn.commit()
+    # Ilk mesaji chat'e de ekle
+    cur.execute("SELECT id FROM admin_messages WHERE sender_id=%s ORDER BY created_at DESC LIMIT 1", (sender_id,))
+    ticket = cur.fetchone()
+    if ticket:
+        cur.execute("INSERT INTO admin_chat (ticket_id, gonderen, mesaj) VALUES (%s,%s,%s)",
+                   (ticket["id"], sender_name, mesaj))
+        conn.commit()
+    cur.close(); conn.close()
+    # Admin'e email
+    from notifications import send_email
+    send_email(ADMIN_EMAIL, f"Yeni Mesaj: {konu} - {sender_name}",
+              f"<p><b>{sender_name}</b> ({sender_type}) yeni mesaj gonderdi.</p><p><b>Konu:</b> {konu}</p><p><b>Mesaj:</b> {mesaj}</p><p><a href='https://ekspertiz-bul.onrender.com/admin/panel'>Admin paneline git</a></p>")
+    return JSONResponse({"success": True})
+
+@app.get("/mesajlarim", response_class=HTMLResponse)
+def mesajlarim(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] not in ["user", "firma"]:
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM admin_messages WHERE sender_type='kullanici' AND sender_id=%s ORDER BY created_at DESC", (s["user_id"],))
+    else:
+        cur.execute("SELECT * FROM admin_messages WHERE sender_type='firma' AND sender_id=%s ORDER BY created_at DESC", (s["firm_id"],))
+    tickets = cur.fetchall()
+    cur.close(); conn.close()
+
+    ticket_html = ""
+    for t in tickets:
+        badge = "badge-beklemede" if not t["cevaplandi"] else "badge-tamamlandi"
+        durum = "Bekliyor" if not t["cevaplandi"] else "Cevaplandi"
+        ticket_html += f"""<div class='card' style='cursor:pointer' onclick="window.location='/mesajlarim/{t['id']}'">
+          <div style='display:flex;justify-content:space-between;align-items:center'>
+            <div>
+              <div style='font-weight:700'>{t['konu']}</div>
+              <div style='font-size:.78rem;color:#888'>{str(t['created_at'])[:16]}</div>
+            </div>
+            <span class='badge {badge}'>{durum}</span>
+          </div>
+          <p style='font-size:.82rem;color:#666;margin-top:8px'>{t['mesaj'][:100]}{'...' if len(t['mesaj'])>100 else ''}</p>
+        </div>"""
+
+    back_url = "/kullanici/panel" if s["role"] == "user" else "/firma/panel"
+    body = _base_style() + "<body>" + _topbar("Mesajlarim", back_url, "Panelim")
+    body += "<div class='wrap' style='max-width:700px'>"
+    body += """<div class='card'>
+      <h2>&#128172; Yeni Mesaj Gonder</h2>
+      <div id='msg'></div>
+      <div class='form-group'><label>Konu</label>
+        <select id='konu'>
+          <option value='Sikayet'>Sikayet</option>
+          <option value='Dilek/Istek'>Dilek/Istek</option>
+          <option value='Teknik Sorun'>Teknik Sorun</option>
+          <option value='Firma Dogrulama'>Firma Dogrulama</option>
+          <option value='Diger'>Diger</option>
+        </select>
+      </div>
+      <div class='form-group'><label>Mesaj</label>
+        <textarea id='mesaj' rows='4' placeholder='Mesajinizi yazin...'></textarea>
+      </div>
+      <button class='btn' onclick='gonder()'>Gonder</button>
+    </div>"""
+    body += ticket_html if ticket_html else "<div class='card'><p style='color:#aaa;text-align:center'>Henuz mesaj yok</p></div>"
+    body += """<script>
+    function gonder(){
+      var fd=new FormData();
+      fd.append('konu',document.getElementById('konu').value);
+      fd.append('mesaj',document.getElementById('mesaj').value);
+      if(!fd.get('mesaj').trim()){alert('Mesaj bos olamaz!');return;}
+      fetch('/mesaj/admin-gonder',{method:'POST',body:fd})
+        .then(r=>r.json())
+        .then(d=>{
+          if(d.success){document.getElementById('msg').innerHTML='<div class="alert alert-success">Mesajiniz gonderildi!</div>';
+            document.getElementById('mesaj').value='';setTimeout(()=>location.reload(),1500);}
+          else document.getElementById('msg').innerHTML='<div class="alert alert-error">'+d.error+'</div>';
+        });
+    }
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Mesajlarim</title>" + body)
+
+@app.get("/mesajlarim/{ticket_id}", response_class=HTMLResponse)
+def mesaj_detay_kullanici(ticket_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] not in ["user", "firma"]:
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM admin_messages WHERE id=%s AND sender_type='kullanici' AND sender_id=%s", (ticket_id, s["user_id"]))
+    else:
+        cur.execute("SELECT * FROM admin_messages WHERE id=%s AND sender_type='firma' AND sender_id=%s", (ticket_id, s["firm_id"]))
+    ticket = cur.fetchone()
+    if not ticket:
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Bulunamadi</p>", status_code=404)
+    cur.execute("SELECT * FROM admin_chat WHERE ticket_id=%s ORDER BY created_at", (ticket_id,))
+    chats = cur.fetchall()
+    cur.close(); conn.close()
+
+    chat_html = ""
+    for c in chats:
+        is_admin = c["gonderen"] == "admin"
+        align = "flex-end" if not is_admin else "flex-start"
+        bg = "#e53535" if is_admin else "#f0f0f0"
+        color = "#fff" if is_admin else "#333"
+        label = "Admin" if is_admin else "Siz"
+        chat_html += f"""<div style='display:flex;flex-direction:column;align-items:{align};margin-bottom:12px'>
+          <div style='font-size:.72rem;color:#888;margin-bottom:3px'>{label} - {str(c['created_at'])[:16]}</div>
+          <div style='background:{bg};color:{color};padding:10px 14px;border-radius:12px;max-width:80%;font-size:.85rem'>{c['mesaj']}</div>
+        </div>"""
+
+    back_url = "/mesajlarim"
+    body = _base_style() + "<body>" + _topbar(ticket["konu"], back_url, "Mesajlarim")
+    body += f"""<div class='wrap' style='max-width:700px'>
+      <div class='card'>
+        <div style='height:400px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:14px;margin-bottom:16px' id='chatbox'>
+          {chat_html}
+        </div>
+        <div style='display:flex;gap:8px'>
+          <textarea id='cevap' rows='3' style='flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-family:inherit;font-size:.85rem' placeholder='Mesajinizi yazin...'></textarea>
+          <button class='btn' onclick='yanıtla()' style='align-self:flex-end'>Gonder</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    function yanıtla(){{
+      var msg=document.getElementById('cevap').value.trim();
+      if(!msg)return;
+      var fd=new FormData();
+      fd.append('ticket_id','{ticket_id}');
+      fd.append('mesaj',msg);
+      fetch('/mesajlarim/yanitla',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    document.getElementById('chatbox').scrollTop=document.getElementById('chatbox').scrollHeight;
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Mesaj</title>" + body)
+
+@app.post("/mesajlarim/yanitla")
+async def mesaj_yanitla(
+    ticket_id: int = Form(...),
+    mesaj: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] not in ["user", "firma"]:
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM admin_messages WHERE id=%s AND sender_type='kullanici' AND sender_id=%s", (ticket_id, s["user_id"]))
+    else:
+        cur.execute("SELECT * FROM admin_messages WHERE id=%s AND sender_type='firma' AND sender_id=%s", (ticket_id, s["firm_id"]))
+    ticket = cur.fetchone()
+    if not ticket:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Bulunamadi"})
+    cur.execute("INSERT INTO admin_chat (ticket_id, gonderen, mesaj) VALUES (%s,%s,%s)",
+               (ticket_id, ticket["sender_name"], mesaj))
+    cur.execute("UPDATE admin_messages SET cevaplandi=FALSE, updated_at=NOW() WHERE id=%s", (ticket_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    from notifications import send_email
+    send_email(ADMIN_EMAIL, f"Yeni Yanit: {ticket['konu']} - {ticket['sender_name']}",
+              f"<p><b>{ticket['sender_name']}</b> mesajinizi yanıtladi.</p><p>{mesaj}</p><p><a href='https://ekspertiz-bul.onrender.com/admin/mesaj/{ticket_id}'>Goruntule</a></p>")
+    return JSONResponse({"success": True})
 
 if __name__ == "__main__":
     import uvicorn

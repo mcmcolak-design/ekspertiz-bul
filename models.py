@@ -184,6 +184,39 @@ def init_db():
         ADD COLUMN IF NOT EXISTS durum TEXT DEFAULT 'aktif',
         ADD COLUMN IF NOT EXISTS durum_notu TEXT DEFAULT ''
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_messages (
+            id SERIAL PRIMARY KEY,
+            sender_type TEXT NOT NULL,
+            sender_id INTEGER NOT NULL,
+            sender_name TEXT NOT NULL,
+            konu TEXT NOT NULL,
+            mesaj TEXT NOT NULL,
+            admin_cevap TEXT DEFAULT '',
+            okundu BOOLEAN DEFAULT FALSE,
+            cevaplandi BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_chat (
+            id SERIAL PRIMARY KEY,
+            ticket_id INTEGER NOT NULL REFERENCES admin_messages(id),
+            gonderen TEXT NOT NULL,
+            mesaj TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            sifre_hash TEXT NOT NULL,
+            ad TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
