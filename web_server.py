@@ -1483,6 +1483,7 @@ def _kullanici_panel_html(user, randevular):
         if r['durum'] == 'onaylandi':
             aksiyonlar += f"<button class='btn-green' style='font-size:.72rem;padding:4px 8px' onclick='hizmetAldim({rid})'>&#9989; Hizmet Aldim</button> "
         aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='iletisim({rid})'>📞</button> "
+        aksiyonlar += f"<a href='/randevu/{rid}/mesajlar' class='btn-outline' style='font-size:.72rem;padding:4px 8px'>&#128172; Mesaj</a> "
         if r['durum'] == 'tamamlandi':
             aksiyonlar += f"<a href='/randevu/{rid}/puan' class='btn-green' style='font-size:.72rem;padding:4px 8px;text-decoration:none'>&#11088; Puan</a>"
         rows += f"""<tr>
@@ -1599,7 +1600,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
             onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">&#9989; Onaylandi - musteri tamamlayacak</span>'
         else:
             onay_btns = ""
-        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">&#128222; Musteri</button>'
+        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">&#128222; Musteri</button> <a href="/randevu/{rid}/mesajlar" class="btn-outline" style="font-size:.72rem;padding:4px 8px">&#128172; Mesaj</a>'
         saat_btn = ""
         iptal_btn = ""
         if r["durum"] not in ["tamamlandi","iptal"]:
@@ -2904,6 +2905,147 @@ async def mesaj_yanitla(
     from notifications import send_email
     send_email(ADMIN_EMAIL, f"Yeni Yanit: {ticket['konu']} - {ticket['sender_name']}",
               f"<p><b>{ticket['sender_name']}</b> mesajinizi yanıtladi.</p><p>{mesaj}</p><p><a href='https://ekspertiz-bul.onrender.com/admin/mesaj/{ticket_id}'>Goruntule</a></p>")
+    return JSONResponse({"success": True})
+
+
+# ============================================================
+# RANDEVU MESAJLASMA
+# ============================================================
+
+@app.get("/randevu/{appointment_id}/mesajlar", response_class=HTMLResponse)
+def randevu_mesajlar(appointment_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] not in ["user", "firma"]:
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    # Randevuyu dogrula
+    if s["role"] == "user":
+        cur.execute("""
+            SELECT a.*, f.unvan as karsi_ad, f.telefon as karsi_tel
+            FROM appointments a JOIN firm_accounts f ON f.id=a.firm_id
+            WHERE a.id=%s AND a.user_id=%s
+        """, (appointment_id, s["user_id"]))
+        benim_tip = "user"
+        benim_id = s["user_id"]
+    else:
+        cur.execute("""
+            SELECT a.*, u.ad_soyad as karsi_ad, u.telefon as karsi_tel
+            FROM appointments a JOIN users u ON u.id=a.user_id
+            WHERE a.id=%s AND a.firm_id=%s
+        """, (appointment_id, s["firm_id"]))
+        benim_tip = "firma"
+        benim_id = s["firm_id"]
+    apt = cur.fetchone()
+    if not apt:
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Randevu bulunamadi. <a href='/'>Ana Sayfa</a></p>", status_code=404)
+    # Mesajlari getir
+    cur.execute("SELECT * FROM messages WHERE appointment_id=%s ORDER BY created_at", (appointment_id,))
+    mesajlar = cur.fetchall()
+    cur.close(); conn.close()
+
+    chat_html = ""
+    for m in mesajlar:
+        benim = (m["gonderen_tip"] == benim_tip and m["gonderen_id"] == benim_id)
+        align = "flex-end" if benim else "flex-start"
+        bg = "#e53535" if benim else "#f0f0f0"
+        color = "#fff" if benim else "#333"
+        label = "Siz" if benim else apt["karsi_ad"]
+        chat_html += f"""<div style='display:flex;flex-direction:column;align-items:{align};margin-bottom:10px'>
+          <div style='font-size:.7rem;color:#888;margin-bottom:2px'>{label} - {str(m['created_at'])[:16]}</div>
+          <div style='background:{bg};color:{color};padding:10px 14px;border-radius:12px;max-width:75%;font-size:.85rem;word-break:break-word'>{m['mesaj']}</div>
+        </div>"""
+
+    if not chat_html:
+        chat_html = "<p style='text-align:center;color:#aaa;padding:30px'>Henuz mesaj yok. Ilk mesaji siz gonderebilirsiniz.</p>"
+
+    back_url = "/kullanici/panel" if s["role"] == "user" else "/firma/panel"
+    arac = f"{apt.get('arac_marka','')} {apt.get('arac_model','')} {apt.get('arac_yil','')}".strip() or "Belirtilmedi"
+
+    body = _base_style()
+    body += """<style>
+    .chat-container{height:calc(100vh - 280px);min-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:14px;margin-bottom:12px;background:#fafafa}
+    </style>"""
+    body += "<body>" + _topbar("Mesajlar", back_url, "Panelim")
+    body += f"""<div class='wrap' style='max-width:650px'>
+      <div class='card' style='margin-bottom:8px;padding:12px'>
+        <div style='font-weight:700'>{apt['karsi_ad']}</div>
+        <div style='font-size:.78rem;color:#888'>{apt['tarih']} {apt['saat']} - {arac} - <span class='badge badge-{apt['durum']}'>{apt['durum'].title()}</span></div>
+      </div>
+      <div class='chat-container' id='chatbox'>{chat_html}</div>
+      <div style='display:flex;gap:8px'>
+        <textarea id='msg' rows='2' style='flex:1;padding:10px;border:1px solid #ddd;border-radius:10px;font-family:inherit;font-size:.88rem;resize:none' placeholder='Mesajinizi yazin...' onkeydown='if(event.ctrlKey&&event.key==="Enter")gonder()'></textarea>
+        <button class='btn' onclick='gonder()' style='align-self:flex-end;padding:10px 20px'>Gonder</button>
+      </div>
+      <div style='font-size:.72rem;color:#aaa;margin-top:4px'>Ctrl+Enter ile gonderebilirsiniz</div>
+    </div>
+    <script>
+    var APT_ID={appointment_id};
+    function gonder(){{
+      var msg=document.getElementById('msg').value.trim();
+      if(!msg)return;
+      var fd=new FormData();
+      fd.append('appointment_id',APT_ID);
+      fd.append('mesaj',msg);
+      fetch('/randevu/mesaj/gonder',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{
+          if(d.success){{
+            document.getElementById('msg').value='';
+            location.reload();
+          }} else alert(d.error);
+        }});
+    }}
+    document.getElementById('chatbox').scrollTop=document.getElementById('chatbox').scrollHeight;
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Mesajlar</title>" + body)
+
+@app.post("/randevu/mesaj/gonder")
+async def randevu_mesaj_gonder(
+    appointment_id: int = Form(...),
+    mesaj: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] not in ["user", "firma"]:
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    # Randevuyu dogrula
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND user_id=%s", (appointment_id, s["user_id"]))
+        gonderen_tip = "user"
+        gonderen_id = s["user_id"]
+    else:
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND firm_id=%s", (appointment_id, s["firm_id"]))
+        gonderen_tip = "firma"
+        gonderen_id = s["firm_id"]
+    apt = cur.fetchone()
+    if not apt:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Randevu bulunamadi"})
+    cur.execute(
+        "INSERT INTO messages (appointment_id, gonderen_tip, gonderen_id, mesaj) VALUES (%s,%s,%s,%s)",
+        (appointment_id, gonderen_tip, gonderen_id, mesaj)
+    )
+    # Karsi tarafa bildirim
+    if gonderen_tip == "user":
+        cur.execute("SELECT ad_soyad FROM users WHERE id=%s", (gonderen_id,))
+        row = cur.fetchone()
+        ad = row["ad_soyad"] if row else "Kullanici"
+        add_notification(firm_id=apt["firm_id"], tip="yeni_mesaj",
+                        mesaj=f"Yeni mesaj: {ad} - Randevu {apt['tarih']} {apt['saat']}",
+                        appointment_id=appointment_id)
+    else:
+        cur.execute("SELECT unvan FROM firm_accounts WHERE id=%s", (gonderen_id,))
+        row = cur.fetchone()
+        ad = row["unvan"] if row else "Firma"
+        add_notification(user_id=apt["user_id"], tip="yeni_mesaj",
+                        mesaj=f"Yeni mesaj: {ad} - Randevu {apt['tarih']} {apt['saat']}",
+                        appointment_id=appointment_id)
+    conn.commit()
+    cur.close(); conn.close()
     return JSONResponse({"success": True})
 
 if __name__ == "__main__":
