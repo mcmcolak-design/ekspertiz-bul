@@ -5,8 +5,56 @@ from pathlib import Path
 from models import (init_db, get_conn, hash_password, check_password,
                     create_session, get_session, delete_session)
 from notifications import email_yeni_randevu_firma, email_randevu_guncelleme_kullanici
+from apscheduler.schedulers.background import BackgroundScheduler
+import datetime
 
 init_db()
+
+def auto_complete_appointments():
+    """Randevu saatinden 1 saat sonra otomatik tamamla"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        now = datetime.datetime.now()
+        # onaylandi durumundaki randevulari al
+        cur.execute("""
+            SELECT * FROM appointments
+            WHERE durum = 'onaylandi'
+        """)
+        rows = cur.fetchall()
+        for r in rows:
+            try:
+                apt_dt = datetime.datetime.strptime(f"{r['tarih']} {r['saat']}", "%Y-%m-%d %H:%M")
+                # 1 saat sonra otomatik tamamla
+                if now >= apt_dt + datetime.timedelta(hours=1):
+                    cur.execute("UPDATE appointments SET durum='tamamlandi' WHERE id=%s", (r['id'],))
+                    # Her iki tarafa bildirim
+                    cur.execute("SELECT unvan FROM firm_accounts WHERE id=%s", (r['firm_id'],))
+                    firm = cur.fetchone()
+                    firma_adi = firm['unvan'] if firm else 'Firma'
+                    # Kullaniciya bildirim
+                    cur.execute(
+                        "INSERT INTO notifications (user_id, tip, mesaj, appointment_id) VALUES (%s,%s,%s,%s)",
+                        (r['user_id'], 'otomatik_tamamlandi', f'Randevunuz tamamlandi: {firma_adi} - {r["tarih"]} {r["saat"]}', r['id'])
+                    )
+                    # Firmaya bildirim
+                    cur.execute(
+                        "INSERT INTO notifications (firm_id, tip, mesaj, appointment_id) VALUES (%s,%s,%s,%s)",
+                        (r['firm_id'], 'otomatik_tamamlandi', f'Randevu otomatik tamamlandi: {r["tarih"]} {r["saat"]}', r['id'])
+                    )
+            except Exception as e:
+                print(f"Auto complete error for apt {r['id']}: {e}")
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Scheduler error: {e}")
+
+# Her 15 dakikada bir kontrol et
+scheduler = BackgroundScheduler()
+scheduler.add_job(auto_complete_appointments, 'interval', minutes=15)
+scheduler.start()
+print("Scheduler started")
 
 app = FastAPI()
 DB_PATH = Path(__file__).parent / "ekspertiz_prices.db"
