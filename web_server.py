@@ -1430,7 +1430,10 @@ def _kullanici_panel_html(user, randevular):
         aksiyonlar = ""
         if r['durum'] not in ['tamamlandi','iptal']:
             aksiyonlar += f"<button class='btn-red' style='font-size:.72rem;padding:4px 8px' onclick='iptalEt({rid})'>İptal</button> "
-            aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='saatDegistir({rid})'>Saat</button> "
+            if r['durum'] == 'beklemede':
+                aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='saatDegistir({rid})'>Saat</button> "
+        if r['durum'] == 'onaylandi':
+            aksiyonlar += f"<button class='btn-green' style='font-size:.72rem;padding:4px 8px' onclick='hizmetAldim({rid})'>✅ Hizmet Aldım</button> "
         aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='iletisim({rid})'>📞</button> "
         if r['durum'] == 'tamamlandi':
             aksiyonlar += f"<a href='/randevu/{rid}/puan' class='btn-green' style='font-size:.72rem;padding:4px 8px;text-decoration:none'>⭐ Puan</a>"
@@ -1490,6 +1493,13 @@ def _kullanici_panel_html(user, randevular):
       </div>
     </div>
     <script>
+    function hizmetAldim(id){{
+      if(!confirm('Hizmeti aldiginizi onayliyor musunuz? Bu islem geri alinamaz.'))return;
+      var fd=new FormData();fd.append('appointment_id',id);fd.append('durum','tamamlandi');
+      fetch('/randevu/kullanici-tamamla',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
     function iptalEt(id){{
       if(!confirm('Randevuyu iptal etmek istediginize emin misiniz?'))return;
       var fd=new FormData();fd.append('appointment_id',id);
@@ -1535,7 +1545,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         if r["durum"] == "beklemede":
             onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'onaylandi\')">Onayla</button> <button class="btn-red" onclick="updateApt({rid},\'reddedildi\')" style="margin-left:4px">Reddet</button>'
         elif r["durum"] == "onaylandi":
-            onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'tamamlandi\')">Tamamlandi</button>'
+            onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">✅ Onaylandi - musteri tamamlayacak</span>'
         else:
             onay_btns = ""
         iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">📞 Musteri</button>'
@@ -2322,6 +2332,37 @@ async def firma_durum_guncelle(
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
+
+@app.post("/randevu/kullanici-tamamla")
+async def kullanici_tamamla(
+    appointment_id: int = Form(...),
+    durum: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    if durum != "tamamlandi":
+        return JSONResponse({"error": "Gecersiz durum"})
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM appointments WHERE id=%s AND user_id=%s AND durum='onaylandi'",
+                (appointment_id, s["user_id"]))
+    apt = cur.fetchone()
+    if not apt:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Randevu bulunamadi veya onaylanmamis"})
+    cur.execute("UPDATE appointments SET durum='tamamlandi' WHERE id=%s", (appointment_id,))
+    add_notification(
+        firm_id=apt["firm_id"],
+        tip="tamamlandi",
+        mesaj=f"Musteri hizmeti tamamlandi olarak isaretledi. Randevu: {apt['tarih']} {apt['saat']}",
+        appointment_id=appointment_id
+    )
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
 
 if __name__ == "__main__":
     import uvicorn
