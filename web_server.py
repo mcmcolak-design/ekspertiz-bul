@@ -1305,8 +1305,6 @@ def _topbar(title="", back_url="/", back_label="Ana Sayfa"):
 
 def _giris_html(hata=None):
     h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
-    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
-    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Giriş - EkspertizBul</title>{_base_style()}</head><body>
