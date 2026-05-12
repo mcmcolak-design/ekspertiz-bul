@@ -1400,12 +1400,21 @@ def _kullanici_panel_html(user, randevular):
     rows = ""
     for r in randevular:
         arac = f"{r['arac_marka']} {r['arac_model']} {r['arac_yil']}".strip() or "-"
+        rid = r['id']
+        aksiyonlar = ""
+        if r['durum'] not in ['tamamlandi','iptal']:
+            aksiyonlar += f"<button class='btn-red' style='font-size:.72rem;padding:4px 8px' onclick='iptalEt({rid})'>İptal</button> "
+            aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='saatDegistir({rid})'>Saat</button> "
+        aksiyonlar += f"<button class='btn-outline' style='font-size:.72rem;padding:4px 8px' onclick='iletisim({rid})'>📞</button> "
+        if r['durum'] == 'tamamlandi':
+            aksiyonlar += f"<a href='/randevu/{rid}/puan' class='btn-green' style='font-size:.72rem;padding:4px 8px;text-decoration:none'>⭐ Puan</a>"
         rows += f"""<tr>
           <td style="padding:8px">{r['firma_unvan']}</td>
           <td style="padding:8px">{r['tarih']} {r['saat']}</td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
           <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
+          <td style="padding:8px">{aksiyonlar}</td>
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
@@ -1428,11 +1437,67 @@ def _kullanici_panel_html(user, randevular):
             <th style="padding:8px;text-align:left">Araç</th>
             <th style="padding:8px;text-align:left">Paket</th>
             <th style="padding:8px;text-align:left">Durum</th>
+            <th style="padding:8px;text-align:left">İşlem</th>
           </tr></thead>
           <tbody>{rows}</tbody>
         </table></div>
       </div>
-    </div></body></html>"""
+    </div>
+    <!-- Iletisim Modal -->
+    <div id="iletisimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:90%;max-width:380px;padding:24px;text-align:center">
+        <h3 style="margin-bottom:16px">📞 İletişim Bilgisi</h3>
+        <div id="iletisimBilgi"></div>
+        <button onclick="document.getElementById('iletisimModal').style.display='none'" class="btn" style="margin-top:16px;width:100%">Kapat</button>
+      </div>
+    </div>
+    <!-- Saat Degisiklik Modal -->
+    <div id="saatModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:90%;max-width:380px;padding:24px">
+        <h3 style="margin-bottom:16px">🕐 Saat Değişikliği</h3>
+        <input type="hidden" id="saatAptId">
+        <div class="form-group"><label>Yeni Tarih</label><input type="date" id="yeniTarih"></div>
+        <div class="form-group"><label>Yeni Saat</label>
+          <select id="yeniSaat"><option value='08:00'>08:00</option><option value='09:00'>09:00</option><option value='10:00'>10:00</option><option value='11:00'>11:00</option><option value='12:00'>12:00</option><option value='13:00'>13:00</option><option value='14:00'>14:00</option><option value='15:00'>15:00</option><option value='16:00'>16:00</option><option value='17:00'>17:00</option><option value='18:00'>18:00</option></select></div>
+        <button onclick="saatGuncelle()" class="btn" style="width:100%;margin-top:8px">Guncelle</button>
+        <button onclick="document.getElementById('saatModal').style.display='none'" class="btn-outline" style="width:100%;margin-top:8px">Vazgec</button>
+      </div>
+    </div>
+    <script>
+    function iptalEt(id){{
+      if(!confirm('Randevuyu iptal etmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('appointment_id',id);
+      fetch('/randevu/iptal',{{method:'POST',body:fd}}).then(r=>r.json()).then(d=>{{
+        if(d.success)location.reload();else alert(d.error);
+      }});
+    }}
+    function saatDegistir(id){{
+      document.getElementById('saatAptId').value=id;
+      document.getElementById('saatModal').style.display='flex';
+    }}
+    function saatGuncelle(){{
+      var fd=new FormData();
+      fd.append('appointment_id',document.getElementById('saatAptId').value);
+      fd.append('yeni_tarih',document.getElementById('yeniTarih').value);
+      fd.append('yeni_saat',document.getElementById('yeniSaat').value);
+      if(!fd.get('yeni_tarih')){{alert('Tarih secin!');return;}}
+      fetch('/randevu/saat-guncelle',{{method:'POST',body:fd}}).then(r=>r.json()).then(d=>{{
+        if(d.success){{document.getElementById('saatModal').style.display='none';location.reload();}}
+        else alert(d.error);
+      }});
+    }}
+    function iletisim(id){{
+      fetch('/randevu/'+id+'/iletisim').then(r=>r.json()).then(d=>{{
+        if(d.error){{alert(d.error);return;}}
+        document.getElementById('iletisimBilgi').innerHTML=
+          '<p style="font-size:1rem;font-weight:700">'+d.ad+'</p>'+
+          '<p style="margin:8px 0"><a href="tel:'+d.telefon+'" style="color:#e53535;font-size:1.1rem;font-weight:700">📞 '+d.telefon+'</a></p>'+
+          '<p style="font-size:.85rem;color:#666">'+d.email+'</p>';
+        document.getElementById('iletisimModal').style.display='flex';
+      }});
+    }}
+    </script>
+    </body></html>"""
 
 def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     # Randevu satirlari
@@ -1803,6 +1868,267 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
     body += "</body></html>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
+
+
+# ============================================================
+# RANDEVU IPTAL / SAAT DEGISIKLIK / ILETISIM
+# ============================================================
+
+@app.post("/randevu/iptal")
+async def randevu_iptal(
+    appointment_id: int = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s:
+        return JSONResponse({"error": "Giris gerekli"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND user_id=%s", (appointment_id, s["user_id"]))
+    else:
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND firm_id=%s", (appointment_id, s["firm_id"]))
+    apt = cur.fetchone()
+    if not apt:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Randevu bulunamadi"}, status_code=404)
+    if apt["durum"] in ["tamamlandi", "iptal"]:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Bu randevu iptal edilemez"})
+    cur.execute("UPDATE appointments SET durum='iptal' WHERE id=%s", (appointment_id,))
+    # Karsi tarafa bildirim
+    if s["role"] == "user":
+        cur.execute("SELECT unvan FROM firm_accounts WHERE id=%s", (apt["firm_id"],))
+        firm = cur.fetchone()
+        add_notification(firm_id=apt["firm_id"], tip="iptal", mesaj=f"Randevu iptal edildi: {apt['tarih']} {apt['saat']}", appointment_id=appointment_id)
+    else:
+        cur.execute("SELECT ad_soyad FROM users WHERE id=%s", (apt["user_id"],))
+        add_notification(user_id=apt["user_id"], tip="iptal", mesaj=f"Randevunuz iptal edildi: {apt['tarih']} {apt['saat']}", appointment_id=appointment_id)
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/randevu/saat-guncelle")
+async def randevu_saat_guncelle(
+    appointment_id: int = Form(...),
+    yeni_tarih: str = Form(...),
+    yeni_saat: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s:
+        return JSONResponse({"error": "Giris gerekli"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND user_id=%s", (appointment_id, s["user_id"]))
+    else:
+        cur.execute("SELECT * FROM appointments WHERE id=%s AND firm_id=%s", (appointment_id, s["firm_id"]))
+    apt = cur.fetchone()
+    if not apt or apt["durum"] in ["tamamlandi", "iptal"]:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Guncelleme yapilamaz"})
+    cur.execute("UPDATE appointments SET tarih=%s, saat=%s, durum='beklemede' WHERE id=%s", (yeni_tarih, yeni_saat, appointment_id))
+    if s["role"] == "user":
+        add_notification(firm_id=apt["firm_id"], tip="saat_degisiklik", mesaj=f"Randevu saati degistirildi: {yeni_tarih} {yeni_saat}", appointment_id=appointment_id)
+    else:
+        add_notification(user_id=apt["user_id"], tip="saat_degisiklik", mesaj=f"Randevu saatiniz degistirildi: {yeni_tarih} {yeni_saat}", appointment_id=appointment_id)
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.get("/randevu/{appointment_id}/iletisim", response_class=JSONResponse)
+def randevu_iletisim(appointment_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s:
+        return JSONResponse({"error": "Giris gerekli"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if s["role"] == "user":
+        cur.execute("""
+            SELECT f.telefon, f.email, f.unvan as ad
+            FROM appointments a JOIN firm_accounts f ON f.id=a.firm_id
+            WHERE a.id=%s AND a.user_id=%s
+        """, (appointment_id, s["user_id"]))
+    else:
+        cur.execute("""
+            SELECT u.telefon, u.email, u.ad_soyad as ad
+            FROM appointments a JOIN users u ON u.id=a.user_id
+            WHERE a.id=%s AND a.firm_id=%s
+        """, (appointment_id, s["firm_id"]))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    if not row:
+        return JSONResponse({"error": "Bulunamadi"}, status_code=404)
+    return JSONResponse(dict(row))
+
+# ============================================================
+# PUANLAMA SISTEMI
+# ============================================================
+
+@app.get("/randevu/{appointment_id}/puan", response_class=HTMLResponse)
+def puan_sayfasi(appointment_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT a.*, f.unvan, f.telefon as firma_tel
+        FROM appointments a JOIN firm_accounts f ON f.id=a.firm_id
+        WHERE a.id=%s AND a.user_id=%s
+    """, (appointment_id, s["user_id"]))
+    apt = cur.fetchone()
+    if not apt or apt["durum"] != "tamamlandi":
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Puan verilemez. <a href='/kullanici/panel'>Geri Don</a></p>")
+    # 30 gun kontrolu
+    import datetime
+    completed = apt["created_at"]
+    if isinstance(completed, str):
+        completed = datetime.datetime.fromisoformat(completed)
+    if (datetime.datetime.now() - completed).days > 30:
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Puanlama suresi doldu (30 gun). <a href='/kullanici/panel'>Geri Don</a></p>")
+    # Mevcut puan var mi
+    cur.execute("SELECT * FROM reviews WHERE appointment_id=%s", (appointment_id,))
+    existing_review = cur.fetchone()
+    existing_criteria = {}
+    if existing_review:
+        cur.execute("SELECT * FROM review_criteria WHERE review_id=%s", (existing_review["id"],))
+        for c in cur.fetchall():
+            existing_criteria[c["kriter_adi"]] = dict(c)
+    # Kriter listesi
+    cur.execute("SELECT * FROM review_criteria_config WHERE aktif=TRUE ORDER BY sira")
+    kriterler = cur.fetchall()
+    cur.close(); conn.close()
+
+    kriter_html = ""
+    for k in kriterler:
+        mevcut = existing_criteria.get(k["kriter_adi"], {})
+        mevcut_puan = mevcut.get("puan", 0)
+        degistirilebilir = k["degistirilebilir"]
+        degistirildi = mevcut.get("degistirildi", False)
+        disabled = ""
+        info = ""
+        if existing_review:
+            if not degistirilebilir:
+                disabled = "disabled"
+                info = "<span style='color:#888;font-size:.75rem'>Degistirilemez</span>"
+            elif degistirildi:
+                disabled = "disabled"
+                info = "<span style='color:#888;font-size:.75rem'>Zaten degistirildi</span>"
+            else:
+                info = "<span style='color:#00a875;font-size:.75rem'>Degistirilebilir (1 kez, 30 gun icinde)</span>"
+        stars = ""
+        for i in range(1, 6):
+            checked = "checked" if mevcut_puan == i else ""
+            stars += f"<input type='radio' name='kriter_{k['id']}' value='{i}' {checked} {disabled} style='margin:0 3px'> {i}⭐ "
+        kriter_html += f"<div style='margin-bottom:14px;padding:12px;background:#f5f0f0;border-radius:8px'><div style='font-weight:600;margin-bottom:6px'>{k['kriter_adi']} {info}</div><div>{stars}</div></div>"
+
+    btn_label = "Puani Guncelle" if existing_review else "Puan Ver"
+    review_id = existing_review["id"] if existing_review else ""
+
+    body = _base_style() + "<body>" + _topbar("Puan Ver", "/kullanici/panel", "Panelim")
+    body += f"<div class='wrap' style='max-width:500px'><div class='card'>"
+    body += f"<h2>⭐ {apt['unvan']} - Degerlendirme</h2>"
+    body += f"<p style='font-size:.82rem;color:#888;margin-bottom:16px'>{apt['tarih']} {apt['saat']} randevusu</p>"
+    body += "<div id='msg'></div>"
+    body += kriter_html
+    body += "<div class='form-group'><label>Yorum (opsiyonel)</label><textarea id='yorum' rows='3'>" + (existing_review["yorum"] if existing_review and existing_review.get("yorum") else "") + "</textarea></div>"
+    body += f"<button class='btn' style='width:100%' onclick='submitPuan()'>{btn_label}</button>"
+    body += "</div></div>"
+
+    kriterler_js = "[" + ",".join([f"{{id:{k['id']},adi:'{k['kriter_adi']}',degistirilebilir:{str(k['degistirilebilir']).lower()}}}" for k in kriterler]) + "]"
+
+    body += f"""<script>
+var KRITERLER={kriterler_js};
+var REVIEW_ID="{review_id}";
+var APT_ID={appointment_id};
+function submitPuan(){{
+  var fd=new FormData();
+  fd.append('appointment_id',APT_ID);
+  fd.append('review_id',REVIEW_ID);
+  fd.append('yorum',document.getElementById('yorum').value);
+  var ok=true;
+  KRITERLER.forEach(function(k){{
+    var radios=document.querySelectorAll('input[name="kriter_'+k.id+'"]');
+    var val=0;
+    radios.forEach(function(r){{if(r.checked)val=r.value;}});
+    if(!val&&!radios[0].disabled){{ok=false;}}
+    fd.append('kriter_'+k.id,val);
+  }});
+  if(!ok){{alert('Lutfen tum kriterleri puanlayin!');return;}}
+  fetch('/randevu/puan/kaydet',{{method:'POST',body:fd}})
+    .then(r=>r.json())
+    .then(d=>{{
+      if(d.success){{
+        document.getElementById('msg').innerHTML='<div class="alert alert-success">Degerlendirmeniz kaydedildi!</div>';
+        setTimeout(()=>window.location='/kullanici/panel',2000);
+      }}else{{
+        document.getElementById('msg').innerHTML='<div class="alert alert-error">'+d.error+'</div>';
+      }}
+    }});
+}}
+</script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Puan Ver</title>" + body)
+
+@app.post("/randevu/puan/kaydet")
+async def puan_kaydet(request: Request, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    form = await request.form()
+    appointment_id = int(form.get("appointment_id"))
+    review_id = form.get("review_id", "")
+    yorum = form.get("yorum", "")
+    import datetime
+    conn = get_conn()
+    cur = conn.cursor()
+    # Randevu kontrolu
+    cur.execute("SELECT * FROM appointments WHERE id=%s AND user_id=%s AND durum='tamamlandi'", (appointment_id, s["user_id"]))
+    apt = cur.fetchone()
+    if not apt:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Randevu bulunamadi veya tamamlanmamis"})
+    # 30 gun kontrolu
+    completed = apt["created_at"]
+    if isinstance(completed, str):
+        completed = datetime.datetime.fromisoformat(completed)
+    if (datetime.datetime.now() - completed).days > 30:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Puanlama suresi doldu"})
+    # Kriter listesi
+    cur.execute("SELECT * FROM review_criteria_config WHERE aktif=TRUE")
+    kriterler = cur.fetchall()
+    if review_id:
+        # Guncelleme
+        rid = int(review_id)
+        cur.execute("UPDATE reviews SET yorum=%s WHERE id=%s AND user_id=%s", (yorum, rid, s["user_id"]))
+        for k in kriterler:
+            puan_val = form.get(f"kriter_{k['id']}", "0")
+            if puan_val and int(puan_val) > 0:
+                cur.execute("SELECT * FROM review_criteria WHERE review_id=%s AND kriter_adi=%s", (rid, k["kriter_adi"]))
+                existing = cur.fetchone()
+                if existing:
+                    if k["degistirilebilir"] and not existing["degistirildi"]:
+                        cur.execute("UPDATE review_criteria SET puan=%s, degistirildi=TRUE, updated_at=NOW() WHERE id=%s",
+                                   (int(puan_val), existing["id"]))
+    else:
+        # Yeni puan
+        cur.execute("INSERT INTO reviews (user_id, firm_id, appointment_id, yorum) VALUES (%s,%s,%s,%s) RETURNING id",
+                   (s["user_id"], apt["firm_id"], appointment_id, yorum))
+        rid = cur.fetchone()["id"]
+        for k in kriterler:
+            puan_val = form.get(f"kriter_{k['id']}", "0")
+            if puan_val and int(puan_val) > 0:
+                cur.execute("INSERT INTO review_criteria (review_id, kriter_adi, puan, degistirilebilir) VALUES (%s,%s,%s,%s)",
+                           (rid, k["kriter_adi"], int(puan_val), k["degistirilebilir"]))
+        # Firmaya bildirim
+        add_notification(firm_id=apt["firm_id"], tip="yeni_puan", mesaj=f"Yeni degerlendirme aldiniz!", appointment_id=appointment_id)
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
 
 if __name__ == "__main__":
     import uvicorn

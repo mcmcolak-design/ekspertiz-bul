@@ -108,10 +108,39 @@ def init_db():
             user_id INTEGER NOT NULL,
             firm_id INTEGER NOT NULL,
             appointment_id INTEGER NOT NULL UNIQUE,
-            puan INTEGER NOT NULL CHECK(puan BETWEEN 1 AND 5),
             yorum TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS review_criteria (
+            id SERIAL PRIMARY KEY,
+            review_id INTEGER NOT NULL,
+            kriter_adi TEXT NOT NULL,
+            puan INTEGER NOT NULL CHECK(puan BETWEEN 1 AND 5),
+            degistirilebilir BOOLEAN DEFAULT FALSE,
+            degistirildi BOOLEAN DEFAULT FALSE,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (review_id) REFERENCES reviews(id)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS review_criteria_config (
+            id SERIAL PRIMARY KEY,
+            kriter_adi TEXT NOT NULL UNIQUE,
+            degistirilebilir BOOLEAN DEFAULT FALSE,
+            aktif BOOLEAN DEFAULT TRUE,
+            sira INTEGER DEFAULT 0
+        )
+    """)
+    # Varsayilan kriterler
+    cur.execute("""
+        INSERT INTO review_criteria_config (kriter_adi, degistirilebilir, sira)
+        VALUES
+            ('Firma Ilgisi', FALSE, 1),
+            ('Islem Suresi', FALSE, 2),
+            ('Islemlerin Dogrulugu', TRUE, 3)
+        ON CONFLICT (kriter_adi) DO NOTHING
     """)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS firm_packages (
