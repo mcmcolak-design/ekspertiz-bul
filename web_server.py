@@ -1768,7 +1768,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     function firmaIletisim(id){{
       fetch('/randevu/'+id+'/iletisim').then(r=>r.json()).then(d=>{{
         if(d.error){{alert(d.error);return;}}
-        alert('Musteri: '+d.ad+'\nTelefon: '+d.telefon+'\nEmail: '+d.email);
+        alert('Musteri: '+d.ad+' | Tel: '+d.telefon+' | Email: '+d.email);
       }});
     }}
     function firmaSaatDegistir(id){{
