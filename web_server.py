@@ -1305,6 +1305,8 @@ def _topbar(title="", back_url="/", back_label="Ana Sayfa"):
 
 def _giris_html(hata=None):
     h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
+    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
+    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Giriş - EkspertizBul</title>{_base_style()}</head><body>
@@ -1339,6 +1341,8 @@ def _kayit_html(hata=None):
     h = "" if not hata else f'<div class="alert alert-error">{hata}</div>'
     gorevler = ["İş Yeri Sahibi","Müdür","Yetkili Personel","Şube Müdürü","Diğer"]
     gorev_opts = "".join([f'<option>{g}</option>' for g in gorevler])
+    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
+    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Kayıt - EkspertizBul</title>{_base_style()}</head><body>
@@ -1495,6 +1499,8 @@ def _kullanici_panel_html(user, randevular):
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
+    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
+    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Profilim - EkspertizBul</title>{_base_style()}</head><body>
@@ -1627,6 +1633,8 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     # Bildirim badge
     notif_badge = f'<span class="notif-dot">{unread}</span>' if unread > 0 else ''
 
+    durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
+    durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Firma Paneli - EkspertizBul</title>{_base_style()}
@@ -1650,11 +1658,9 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     <div class="wrap">
       <div class="card" style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-weight:800;font-size:1.05rem">{firm['unvan']}
-            {'<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'}
-          </div>
+          <div style="font-weight:800;font-size:1.05rem">{firm['unvan']} {durum_badge}</div>
           <div style="font-size:.82rem;color:#666">{firm['yetkili_ad']} - {firm['yetkili_gorev']}</div>
-          {f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">📢 {firm["durum_notu"]}</div>' if firm.get('durum_notu') else ''}
+          {durum_notu_html}
         </div>
         <button class="btn" onclick="showNotifs()">🔔 Bildirimler{notif_badge}</button>
       </div>
