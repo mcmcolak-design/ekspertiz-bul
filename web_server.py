@@ -1500,9 +1500,12 @@ def _kullanici_panel_html(user, randevular):
     <title>Profilim - EkspertizBul</title>{_base_style()}</head><body>
     {_topbar("", "/", "Ana Sayfa")}
     <div class="wrap">
-      <div class="card">
-        <h2>👤 Hoşgeldin, {user['ad_soyad']}</h2>
-        <p style="font-size:.85rem;color:#666">{user['email']}</p>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2>👤 Hoşgeldin, {user['ad_soyad']}</h2>
+          <p style="font-size:.85rem;color:#666">{user['email']}</p>
+        </div>
+        <a href='/kullanici/profil' class='btn-outline' style='font-size:.82rem'>&#9998; Profili Duzenle</a>
       </div>
       <div class="card">
         <h2>📅 Randevularım</h2>
@@ -1657,9 +1660,9 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
       </div>
 
       <div class="tabs">
-        <button class="tab on" onclick="showTab('randevular')">📅 Randevular</button>
-        <button class="tab" onclick="showTab('paketler')">💰 Paketlerim</button>
-        <button class="tab" onclick="showTab('profil')">⚙️ Profil</button>
+        <button class="tab on" onclick="showTab('randevular',this)">📅 Randevular</button>
+        <button class="tab" onclick="showTab('paketler',this)">💰 Paketlerim</button>
+        <button class="tab" onclick="showTab('profil',this)">⚙️ Profil</button>
       <a href="/firma/calisma-saatleri" class="tab">🕐 Calisma Saatleri</a>
       </div>
 
@@ -1718,11 +1721,12 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     </div>
 
     <script>
-    function showTab(t){{
-      document.querySelectorAll('.tab-content').forEach(function(el){{el.classList.remove('on');}});
-      document.querySelectorAll('.tab').forEach(function(el){{el.classList.remove('on');}});
-      document.getElementById('tab-'+t).classList.add('on');
-      event.target.classList.add('on');
+    function showTab(t, el){{
+      document.querySelectorAll('.tab-content').forEach(function(c){{c.classList.remove('on');}});
+      document.querySelectorAll('.tab').forEach(function(b){{b.classList.remove('on');}});
+      var tc = document.getElementById('tab-'+t);
+      if(tc) tc.classList.add('on');
+      if(el) el.classList.add('on');
     }}
 
     function updateApt(id, durum){{
