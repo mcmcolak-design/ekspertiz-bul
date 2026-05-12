@@ -152,6 +152,38 @@ def init_db():
             aktif INTEGER DEFAULT 1
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS firm_working_hours (
+            id SERIAL PRIMARY KEY,
+            firm_id INTEGER NOT NULL UNIQUE,
+            pazartesi_acilis TEXT DEFAULT '09:00',
+            pazartesi_kapanis TEXT DEFAULT '18:00',
+            pazartesi_kapali BOOLEAN DEFAULT FALSE,
+            sali_acilis TEXT DEFAULT '09:00',
+            sali_kapanis TEXT DEFAULT '18:00',
+            sali_kapali BOOLEAN DEFAULT FALSE,
+            carsamba_acilis TEXT DEFAULT '09:00',
+            carsamba_kapanis TEXT DEFAULT '18:00',
+            carsamba_kapali BOOLEAN DEFAULT FALSE,
+            persembe_acilis TEXT DEFAULT '09:00',
+            persembe_kapanis TEXT DEFAULT '18:00',
+            persembe_kapali BOOLEAN DEFAULT FALSE,
+            cuma_acilis TEXT DEFAULT '09:00',
+            cuma_kapanis TEXT DEFAULT '18:00',
+            cuma_kapali BOOLEAN DEFAULT FALSE,
+            cumartesi_acilis TEXT DEFAULT '09:00',
+            cumartesi_kapanis TEXT DEFAULT '18:00',
+            cumartesi_kapali BOOLEAN DEFAULT TRUE,
+            pazar_acilis TEXT DEFAULT '09:00',
+            pazar_kapanis TEXT DEFAULT '18:00',
+            pazar_kapali BOOLEAN DEFAULT TRUE
+        )
+    """)
+    cur.execute("""
+        ALTER TABLE firm_accounts
+        ADD COLUMN IF NOT EXISTS durum TEXT DEFAULT 'aktif',
+        ADD COLUMN IF NOT EXISTS durum_notu TEXT DEFAULT ''
+    """)
     conn.commit()
     cur.close()
     conn.close()

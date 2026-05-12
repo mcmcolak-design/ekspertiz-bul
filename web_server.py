@@ -56,6 +56,8 @@ def load_firms():
                 "place_id": "",
                 "db_firm_id": f["id"],
                 "no_coords": not lat or not lng,
+                "durum": f.get("durum", "aktif"),
+                "durum_notu": f.get("durum_notu", ""),
             })
     except Exception as e:
         print(f"DB firms load error: {e}")
@@ -411,7 +413,7 @@ function render(){
 
     h+='<div class="card'+(nr?' top':'')+'">'+
         '<div class="ct"><div>'+
-          '<div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+'</div>'+
+          '<div class="fn">'+f.name+(nr?'<span class="bst">En Yakin</span>':'')+(f.durum==='pasif'?'<span style="background:#dc3545;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:4px">KAPALI</span>':'<span style="background:#28a745;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:4px">ACIK</span>')+'</div>'+
           '<div class="fm">'+(stars?'<span class="stars">'+stars+'</span> '+f.rating+' ('+(f.reviews||0)+') ':'')+
           (f.city||'')+(f.address?' \u2022 '+f.address:'')+(f.phone?' \u2022 <a href="tel:'+f.phone+'" style="color:#c41c1c;text-decoration:none">'+f.phone+'</a>':'')+'</div>'+
         '</div>'+(ds?'<div class="db'+(nr?' nr':'')+'">'+ds+'</div>':'')+
@@ -1050,6 +1052,30 @@ async def randevu_olustur(
     user = cur.fetchone()
     cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (firm_id,))
     firm = cur.fetchone()
+    if not firm:
+        return JSONResponse({"error": "Firma bulunamadi"}, status_code=404)
+    # Firma pasif mi?
+    if firm.get("durum") == "pasif":
+        notu = firm.get("durum_notu") or "Firma simdilik randevu almiyor."
+        return JSONResponse({"error": f"Firma su an kapali: {notu}"})
+    # Calisma saati kontrolu
+    import datetime
+    gun_map = {0:"pazartesi",1:"sali",2:"carsamba",3:"persembe",4:"cuma",5:"cumartesi",6:"pazar"}
+    try:
+        tarih_dt = datetime.datetime.strptime(tarih, "%Y-%m-%d")
+        gun_adi = gun_map[tarih_dt.weekday()]
+        cur.execute("SELECT * FROM firm_working_hours WHERE firm_id=%s", (firm_id,))
+        wh = cur.fetchone()
+        if wh:
+            if wh[f"{gun_adi}_kapali"]:
+                return JSONResponse({"error": f"Firma {tarih} tarihinde kapali."})
+            acilis = wh[f"{gun_adi}_acilis"]
+            kapanis = wh[f"{gun_adi}_kapanis"]
+            if acilis and kapanis and saat:
+                if not (acilis <= saat <= kapanis):
+                    return JSONResponse({"error": f"Secilen saat calisma saatleri disinda. Calisma saatleri: {acilis} - {kapanis}"})
+    except Exception as e:
+        print(f"Calisma saati kontrol hatasi: {e}")
     cur.execute(
         "INSERT INTO appointments (user_id,firm_id,tarih,saat,arac_marka,arac_model,arac_yil,paket,notlar) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
         (s["user_id"], firm_id, tarih, saat, arac_marka, arac_model, arac_yil, paket, notlar)
@@ -1563,8 +1589,11 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     <div class="wrap">
       <div class="card" style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-weight:800;font-size:1.05rem">{firm['unvan']}</div>
+          <div style="font-weight:800;font-size:1.05rem">{firm['unvan']}
+            {'<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'}
+          </div>
           <div style="font-size:.82rem;color:#666">{firm['yetkili_ad']} - {firm['yetkili_gorev']}</div>
+          {f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">📢 {firm["durum_notu"]}</div>' if firm.get('durum_notu') else ''}
         </div>
         <button class="btn" onclick="showNotifs()">🔔 Bildirimler{notif_badge}</button>
       </div>
@@ -1573,6 +1602,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         <button class="tab on" onclick="showTab('randevular')">📅 Randevular</button>
         <button class="tab" onclick="showTab('paketler')">💰 Paketlerim</button>
         <button class="tab" onclick="showTab('profil')">⚙️ Profil</button>
+      <a href="/firma/calisma-saatleri" class="tab">🕐 Calisma Saatleri</a>
       </div>
 
       <!-- RANDEVULAR -->
@@ -1861,6 +1891,15 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
             print(f"randevu_page: {e}")
     if not firm_db_id:
         return HTMLResponse("<p>Firma bulunamadi. <a href='/'>Ana Sayfa</a></p>", status_code=404)
+    # Firma durumu kontrol
+    conn2 = get_conn()
+    cur2 = conn2.cursor()
+    cur2.execute("SELECT durum, durum_notu FROM firm_accounts WHERE id=%s", (firm_db_id,))
+    firm_status = cur2.fetchone()
+    cur2.close(); conn2.close()
+    if firm_status and firm_status["durum"] == "pasif":
+        notu = firm_status["durum_notu"] or "Firma su an randevu almiyor."
+        return HTMLResponse(f"<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><title>Firma Kapali</title>{_base_style()}</head><body>{_topbar('', '/', 'Ana Sayfa')}<div class='wrap' style='max-width:500px'><div class='card' style='text-align:center'><div style='font-size:3rem'>🔴</div><h2 style='margin:16px 0'>Firma Su An Kapali</h2><p style='color:#666'>{notu}</p><a href='/' class='btn' style='display:inline-block;margin-top:16px'>Ana Sayfaya Don</a></div></div></body></html>")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s AND aktif=1", (firm_db_id,))
@@ -2148,6 +2187,138 @@ async def puan_kaydet(request: Request, session: str = Cookie(default=None)):
                            (rid, k["kriter_adi"], int(puan_val), k["degistirilebilir"]))
         # Firmaya bildirim
         add_notification(firm_id=apt["firm_id"], tip="yeni_puan", mesaj=f"Yeni degerlendirme aldiniz!", appointment_id=appointment_id)
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+
+# ============================================================
+# CALISMA SAATLERI VE FIRMA DURUMU
+# ============================================================
+
+GUNLER = ['pazartesi','sali','carsamba','persembe','cuma','cumartesi','pazar']
+GUN_LABELS = ['Pazartesi','Sali','Carsamba','Persembe','Cuma','Cumartesi','Pazar']
+
+@app.get("/firma/calisma-saatleri", response_class=HTMLResponse)
+def calisma_saatleri_page(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return RedirectResponse("/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_working_hours WHERE firm_id=%s", (s["firm_id"],))
+    wh = cur.fetchone()
+    cur.execute("SELECT durum, durum_notu FROM firm_accounts WHERE id=%s", (s["firm_id"],))
+    firm = cur.fetchone()
+    cur.close(); conn.close()
+
+    durum = firm["durum"] if firm else "aktif"
+    durum_notu = firm["durum_notu"] if firm else ""
+
+    saat_opts = "".join([f"<option value='{h:02d}:00'>{h:02d}:00</option>" for h in range(6, 23)])
+
+    gun_rows = ""
+    for i, gun in enumerate(GUNLER):
+        if wh:
+            acilis = wh[f"{gun}_acilis"] or "09:00"
+            kapanis = wh[f"{gun}_kapanis"] or "18:00"
+            kapali = wh[f"{gun}_kapali"]
+        else:
+            acilis = "09:00"
+            kapanis = "18:00"
+            kapali = gun in ["cumartesi", "pazar"]
+
+        acilis_opts = saat_opts.replace(f"value='{acilis}'", f"value='{acilis}' selected")
+        kapanis_opts = saat_opts.replace(f"value='{kapanis}'", f"value='{kapanis}' selected")
+        kapali_checked = "checked" if kapali else ""
+
+        gun_rows += f"""
+        <tr id="row_{gun}" style="{'opacity:.4' if kapali else ''}">
+          <td style="padding:8px;font-weight:600;width:110px">{GUN_LABELS[i]}</td>
+          <td style="padding:8px"><select name="{gun}_acilis" {'disabled' if kapali else ''}>{acilis_opts}</select></td>
+          <td style="padding:8px">-</td>
+          <td style="padding:8px"><select name="{gun}_kapanis" {'disabled' if kapali else ''}>{kapanis_opts}</select></td>
+          <td style="padding:8px"><label><input type="checkbox" name="{gun}_kapali" value="1" {kapali_checked} onchange="toggleGun('{gun}',this.checked)"> Kapali</label></td>
+        </tr>"""
+
+    durum_aktif = "selected" if durum == "aktif" else ""
+    durum_pasif = "selected" if durum == "pasif" else ""
+
+    body = _base_style() + "<body>" + _topbar("Calisma Saatleri", "/firma/panel", "Panelim")
+    body += "<div class='wrap' style='max-width:600px'>"
+    body += "<div class='card'><h2>🔴 Firma Durumu</h2>"
+    body += "<div id='msg'></div>"
+    body += f"<div class='form-group'><label>Durum</label><select id='durum'><option value='aktif' {durum_aktif}>✅ Aktif - Randevu Aliniyor</option><option value='pasif' {durum_pasif}>🔴 Pasif - Randevu Kapali</option></select></div>"
+    body += f"<div class='form-group'><label>Durum Notu (musterilere gorulecek)</label><input type='text' id='durum_notu' value='{durum_notu}' placeholder='Ornek: Izin nedeniyle 3 gun kapali'></div>"
+    body += "<button class='btn' onclick='durumGuncelle()'>Durumu Guncelle</button>"
+    body += "</div>"
+    body += "<div class='card'><h2>🕐 Calisma Saatleri</h2>"
+    body += "<form method='post' action='/firma/calisma-saatleri'>"
+    body += "<table style='width:100%;border-collapse:collapse;font-size:.85rem'>"
+    body += "<thead><tr style='background:#f5f0f0'><th style='padding:8px;text-align:left'>Gun</th><th style='padding:8px'>Acilis</th><th></th><th style='padding:8px'>Kapanis</th><th style='padding:8px'>Durum</th></tr></thead>"
+    body += f"<tbody>{gun_rows}</tbody></table>"
+    body += "<button type='submit' class='btn' style='width:100%;margin-top:16px'>Saatleri Kaydet</button>"
+    body += "</form></div></div>"
+    body += """<script>
+function toggleGun(gun, kapali){
+  var row=document.getElementById('row_'+gun);
+  row.style.opacity=kapali?'0.4':'1';
+  row.querySelectorAll('select').forEach(function(s){s.disabled=kapali;});
+}
+function durumGuncelle(){
+  var fd=new FormData();
+  fd.append('durum',document.getElementById('durum').value);
+  fd.append('durum_notu',document.getElementById('durum_notu').value);
+  fetch('/firma/durum-guncelle',{method:'POST',body:fd})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.success){document.getElementById('msg').innerHTML='<div class="alert alert-success">Durum guncellendi!</div>';}
+      else{document.getElementById('msg').innerHTML='<div class="alert alert-error">'+d.error+'</div>';}
+    });
+}
+</script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Calisma Saatleri</title>" + body)
+
+@app.post("/firma/calisma-saatleri")
+async def calisma_saatleri_kaydet(request: Request, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return RedirectResponse("/giris", status_code=303)
+    form = await request.form()
+    conn = get_conn()
+    cur = conn.cursor()
+    vals = {"firm_id": s["firm_id"]}
+    for gun in GUNLER:
+        vals[f"{gun}_acilis"] = form.get(f"{gun}_acilis", "09:00")
+        vals[f"{gun}_kapanis"] = form.get(f"{gun}_kapanis", "18:00")
+        vals[f"{gun}_kapali"] = form.get(f"{gun}_kapali") == "1"
+    cur.execute("SELECT id FROM firm_working_hours WHERE firm_id=%s", (s["firm_id"],))
+    existing = cur.fetchone()
+    if existing:
+        set_clause = ", ".join([f"{k}=%s" for k in vals if k != "firm_id"])
+        vals_list = [vals[k] for k in vals if k != "firm_id"] + [s["firm_id"]]
+        cur.execute(f"UPDATE firm_working_hours SET {set_clause} WHERE firm_id=%s", vals_list)
+    else:
+        cols = ", ".join(vals.keys())
+        placeholders = ", ".join(["%s"] * len(vals))
+        cur.execute(f"INSERT INTO firm_working_hours ({cols}) VALUES ({placeholders})", list(vals.values()))
+    conn.commit()
+    cur.close(); conn.close()
+    return RedirectResponse("/firma/panel?msg=calisma_saatleri_kaydedildi", status_code=303)
+
+@app.post("/firma/durum-guncelle")
+async def firma_durum_guncelle(
+    durum: str = Form(...),
+    durum_notu: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE firm_accounts SET durum=%s, durum_notu=%s WHERE id=%s",
+                (durum, durum_notu, s["firm_id"]))
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
