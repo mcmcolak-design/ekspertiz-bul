@@ -1505,20 +1505,24 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     for r in randevular:
         arac = f"{r['arac_marka']} {r['arac_model']} {r['arac_yil']}".strip() or "-"
         onay_btns = ""
+        rid = r['id']
         if r["durum"] == "beklemede":
-            onay_btns = f"""
-            <button class="btn-green" onclick="updateApt({r['id']},'onaylandi')">Onayla</button>
-            <button class="btn-red" onclick="updateApt({r['id']},'reddedildi')" style="margin-left:4px">Reddet</button>"""
+            onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'onaylandi\')">Onayla</button> <button class="btn-red" onclick="updateApt({rid},\'reddedildi\')" style="margin-left:4px">Reddet</button>'
         elif r["durum"] == "onaylandi":
-            apt_id = r['id']
-            onay_btns = f'<button class="btn-green" onclick="updateApt({apt_id},\'tamamlandi\')">Tamamlandi</button>'
+            onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'tamamlandi\')">Tamamlandi</button>'
+        else:
+            onay_btns = ""
+        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">📞 Musteri</button>'
+        saat_btn = ""
+        if r["durum"] not in ["tamamlandi","iptal"]:
+            saat_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px;margin-top:4px" onclick="firmaSaatDegistir({rid})">🕐 Saat</button>'
         rows += f"""<tr>
-          <td style="padding:8px">{r['ad_soyad']}<br><small style="color:#888">{r['user_tel'] or ''}</small></td>
+          <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">{r['user_tel'] or ''}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
           <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
           <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
-          <td style="padding:8px">{onay_btns}</td>
+          <td style="padding:8px">{onay_btns}<br>{iletisim_btn}<br>{saat_btn}</td>
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
@@ -1663,6 +1667,25 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         .then(function(){{location.reload();}});
     }}
 
+    function firmaIletisim(id){{
+      fetch('/randevu/'+id+'/iletisim').then(r=>r.json()).then(d=>{{
+        if(d.error){{alert(d.error);return;}}
+        alert('Musteri: '+d.ad+'\nTelefon: '+d.telefon+'\nEmail: '+d.email);
+      }});
+    }}
+    function firmaSaatDegistir(id){{
+      var tarih=prompt('Yeni tarih (YYYY-MM-DD):');
+      if(!tarih)return;
+      var saat=prompt('Yeni saat (HH:00):');
+      if(!saat)return;
+      var fd=new FormData();
+      fd.append('appointment_id',id);
+      fd.append('yeni_tarih',tarih);
+      fd.append('yeni_saat',saat);
+      fetch('/randevu/saat-guncelle',{{method:'POST',body:fd}}).then(r=>r.json()).then(d=>{{
+        if(d.success)location.reload();else alert(d.error);
+      }});
+    }}
     function showNotifs(){{
       fetch('/firma/bildirimler')
         .then(function(r){{return r.json();}})
@@ -2035,7 +2058,6 @@ def puan_sayfasi(appointment_id: int, session: str = Cookie(default=None)):
     body += f"<p style='font-size:.82rem;color:#888;margin-bottom:16px'>{apt['tarih']} {apt['saat']} randevusu</p>"
     body += "<div id='msg'></div>"
     body += kriter_html
-    body += "<div class='form-group'><label>Yorum (opsiyonel)</label><textarea id='yorum' rows='3'>" + (existing_review["yorum"] if existing_review and existing_review.get("yorum") else "") + "</textarea></div>"
     body += f"<button class='btn' style='width:100%' onclick='submitPuan()'>{btn_label}</button>"
     body += "</div></div>"
 
@@ -2049,7 +2071,7 @@ function submitPuan(){{
   var fd=new FormData();
   fd.append('appointment_id',APT_ID);
   fd.append('review_id',REVIEW_ID);
-  fd.append('yorum',document.getElementById('yorum').value);
+  fd.append('yorum','');
   var ok=true;
   KRITERLER.forEach(function(k){{
     var radios=document.querySelectorAll('input[name="kriter_'+k.id+'"]');
@@ -2064,7 +2086,7 @@ function submitPuan(){{
     .then(d=>{{
       if(d.success){{
         document.getElementById('msg').innerHTML='<div class="alert alert-success">Degerlendirmeniz kaydedildi!</div>';
-        setTimeout(()=>window.location='/kullanici/panel',2000);
+        setTimeout(function(){{window.location.href='/kullanici/panel';}},2000);
       }}else{{
         document.getElementById('msg').innerHTML='<div class="alert alert-error">'+d.error+'</div>';
       }}
