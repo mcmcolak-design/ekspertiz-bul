@@ -1881,18 +1881,88 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         }});
     }}
 
-    // 30 saniyede bir bildirim kontrolu
+    // 15 saniyede bir yeni randevu kontrolu
+    var saatOptsHtml = '<option value='06:00'>06:00</option><option value='06:15'>06:15</option><option value='06:30'>06:30</option><option value='06:45'>06:45</option><option value='07:00'>07:00</option><option value='07:15'>07:15</option><option value='07:30'>07:30</option><option value='07:45'>07:45</option><option value='08:00'>08:00</option><option value='08:15'>08:15</option><option value='08:30'>08:30</option><option value='08:45'>08:45</option><option value='09:00'>09:00</option><option value='09:15'>09:15</option><option value='09:30'>09:30</option><option value='09:45'>09:45</option><option value='10:00'>10:00</option><option value='10:15'>10:15</option><option value='10:30'>10:30</option><option value='10:45'>10:45</option><option value='11:00'>11:00</option><option value='11:15'>11:15</option><option value='11:30'>11:30</option><option value='11:45'>11:45</option><option value='12:00'>12:00</option><option value='12:15'>12:15</option><option value='12:30'>12:30</option><option value='12:45'>12:45</option><option value='13:00'>13:00</option><option value='13:15'>13:15</option><option value='13:30'>13:30</option><option value='13:45'>13:45</option><option value='14:00'>14:00</option><option value='14:15'>14:15</option><option value='14:30'>14:30</option><option value='14:45'>14:45</option><option value='15:00'>15:00</option><option value='15:15'>15:15</option><option value='15:30'>15:30</option><option value='15:45'>15:45</option><option value='16:00'>16:00</option><option value='16:15'>16:15</option><option value='16:30'>16:30</option><option value='16:45'>16:45</option><option value='17:00'>17:00</option><option value='17:15'>17:15</option><option value='17:30'>17:30</option><option value='17:45'>17:45</option><option value='18:00'>18:00</option><option value='18:15'>18:15</option><option value='18:30'>18:30</option><option value='18:45'>18:45</option><option value='19:00'>19:00</option><option value='19:15'>19:15</option><option value='19:30'>19:30</option><option value='19:45'>19:45</option><option value='20:00'>20:00</option><option value='20:15'>20:15</option><option value='20:30'>20:30</option><option value='20:45'>20:45</option><option value='21:00'>21:00</option><option value='21:15'>21:15</option><option value='21:30'>21:30</option><option value='21:45'>21:45</option><option value='22:00'>22:00</option><option value='22:15'>22:15</option><option value='22:30'>22:30</option><option value='22:45'>22:45</option>';
     setInterval(function(){{
-      fetch('/firma/bildirimler')
+      fetch('/firma/yeni-randevular')
         .then(function(r){{return r.json();}})
         .then(function(data){{
+          if(data.randevular && data.randevular.length > 0){{
+            showRandevuPopup(data.randevular);
+          }}
           var dot=document.querySelector('.notif-dot');
-          if(data.count>0&&!dot){{
-            document.querySelector('[onclick="showNotifs()"]').innerHTML='&#128276; Bildirimler<span class="notif-dot">'+data.count+'</span>';
+          if(data.unread>0&&!dot){{
+            var btn=document.querySelector('[onclick="showNotifs()"]');
+            if(btn) btn.innerHTML='&#128276; Bildirimler<span class="notif-dot">'+data.unread+'</span>';
           }}
         }});
-    }}, 30000);
+    }}, 15000);
+
+    function showRandevuPopup(randevular){{
+      var modal=document.getElementById('yeniRandevuModal');
+      var list=document.getElementById('yeniRandevuList');
+      var html='';
+      randevular.forEach(function(r){{
+        html+='<div style="background:#f5f0f0;border-radius:10px;padding:14px;margin-bottom:10px" id="rcard-'+r.id+'">';
+        html+='<div style="font-weight:700;font-size:.95rem;margin-bottom:4px">'+r.ad_soyad+'</div>';
+        html+='<div style="font-size:.82rem;color:#666;margin-bottom:8px">'+r.tarih+' '+r.saat+' | '+r.arac+' | '+(r.paket||'-')+'</div>';
+        html+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+        html+='<button class="btn-green" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'onaylandi\',this)">&#9989; Onayla</button>';
+        html+='<button class="btn-red" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'reddedildi\',this)">&#10060; Reddet</button>';
+        html+='<button class="btn-outline" style="font-size:.8rem;padding:6px 12px" onclick="saatFormAc('+r.id+')">&#128336; Saat Degistir</button>';
+        html+='</div>';
+        html+='<div id="sf-'+r.id+'" style="display:none;margin-top:8px">';
+        html+='<input type="date" id="st-t-'+r.id+'" style="padding:6px;border:1px solid #ddd;border-radius:6px;margin-right:4px">';
+        html+='<select id="st-s-'+r.id+'" style="padding:6px;border:1px solid #ddd;border-radius:6px;margin-right:4px">'+saatOptsHtml+'</select>';
+        html+='<button class="btn" style="font-size:.8rem;padding:6px 10px" onclick="saatKaydetP('+r.id+')">Kaydet</button>';
+        html+='</div>';
+        html+='</div>';
+      }});
+      list.innerHTML=html;
+      modal.style.display='flex';
+    }}
+    function aptIslem(id,durum,btn){{
+      var fd=new FormData();fd.append('appointment_id',id);fd.append('durum',durum);
+      fetch('/firma/randevu/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{
+          if(d.success){{
+            var card=document.getElementById('rcard-'+id);
+            card.querySelectorAll('button').forEach(b=>b.disabled=true);
+            card.style.opacity='0.6';
+            card.innerHTML+='<div style="color:#28a745;font-weight:700;margin-top:6px">'+durum.toUpperCase()+'</div>';
+          }} else alert(d.error);
+        }});
+    }}
+    function saatFormAc(id){{
+      var f=document.getElementById('sf-'+id);
+      f.style.display=f.style.display==='none'?'block':'none';
+    }}
+    function saatKaydetP(id){{
+      var tarih=document.getElementById('st-t-'+id).value;
+      var saat=document.getElementById('st-s-'+id).value;
+      if(!tarih){{alert('Tarih secin!');return;}}
+      var fd=new FormData();fd.append('appointment_id',id);fd.append('yeni_tarih',tarih);fd.append('yeni_saat',saat);
+      fetch('/randevu/saat-guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{
+          if(d.success){{
+            document.getElementById('sf-'+id).style.display='none';
+            document.getElementById('rcard-'+id).innerHTML+='<div style="color:#28a745;font-weight:700;margin-top:6px">SAAT GUNCELLENDI</div>';
+          }} else alert(d.error);
+        }});
+    }}
     </script>
+    <!-- Yeni Randevu Bildirimi Modal -->
+    <div id="yeniRandevuModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;align-items:flex-start;justify-content:center;padding-top:60px">
+      <div style="background:#fff;border-radius:16px;width:92%;max-width:500px;max-height:80vh;overflow-y:auto;padding:20px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="color:#1a0000;font-size:1rem">&#128276; Yeni Randevu Talepleri</h3>
+          <button onclick="document.getElementById('yeniRandevuModal').style.display='none'" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#888">&#10005;</button>
+        </div>
+        <div id="yeniRandevuList"></div>
+        <button onclick="document.getElementById('yeniRandevuModal').style.display='none';location.reload()" class="btn" style="width:100%;margin-top:12px">Kapat ve Yenile</button>
+      </div>
+    </div>
+
     <!-- Paket Duzenle Modal -->
     <div id="editPaketModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;padding:24px">
@@ -1908,6 +1978,15 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         </div>
       </div>
     </div>
+    
+    <div id="mesajPopupModal" style="display:none;position:fixed;bottom:20px;right:20px;z-index:3000;width:320px;max-height:400px;overflow-y:auto;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.25);border:2px solid #e53535">
+      <div style="background:#1a0000;color:#fff;padding:12px 16px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:.9rem">&#128172; Yeni Mesajlar</span>
+        <button onclick="document.getElementById('mesajPopupModal').style.display='none'" style="background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer">&#10005;</button>
+      </div>
+      <div id="mesajPopupList" style="padding:12px"></div>
+    </div>
+    
     </body></html>"""
 @app.post("/scrape")
 async def trigger_scrape():
@@ -2754,6 +2833,8 @@ def admin_panel(session: str = Cookie(default=None)):
         </table></div>
       </div>
     </div></body></html>"""
+    body += '<div id="mesajPopupModal" style="display:none;position:fixed;bottom:20px;right:20px;z-index:3000;width:320px;max-height:400px;overflow-y:auto;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.25);border:2px solid #e53535">  <div style="background:#1a0000;color:#fff;padding:12px 16px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">    <span style="font-weight:700;font-size:.9rem">&#128172; Yeni Mesajlar</span>    <button onclick="document.getElementById(\'mesajPopupModal\').style.display=\'none\'" style="background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer">&#10005;</button>  </div>  <div id="mesajPopupList" style="padding:12px"></div></div>'
+    body += "<script>setInterval(function(){fetch('/admin/yeni-mesajlar').then(r=>r.json()).then(d=>{if(d.mesajlar&&d.mesajlar.length>0)showMP(d.mesajlar);});},20000);function showMP(mesajlar){var m=document.getElementById('mesajPopupModal');var l=document.getElementById('mesajPopupList');var h='';mesajlar.forEach(function(x){h+='<div style=\"border-bottom:1px solid #f0f0f0;padding:8px 0;cursor:pointer\" onclick=\"window.location=\'/admin/mesaj/'+x.ticket_id+'\'\">'+'<b style=\"font-size:.82rem;color:#e53535\">'+x.ad+' - '+x.konu+'</b><br><span style=\"font-size:.78rem;color:#555\">'+x.mesaj.substring(0,80)+'</span></div>';});l.innerHTML=h;m.style.display='block';}</script>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Admin Panel</title>" + body)
 
 @app.get("/admin/mesaj/{ticket_id}", response_class=HTMLResponse)
@@ -3861,6 +3942,18 @@ def admin_firma_detay(firm_id: int, session: str = Cookie(default=None)):
         </table>
       </div>
     </div>
+    <!-- Yeni Randevu Bildirimi Modal -->
+    <div id="yeniRandevuModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;align-items:flex-start;justify-content:center;padding-top:60px">
+      <div style="background:#fff;border-radius:16px;width:92%;max-width:500px;max-height:80vh;overflow-y:auto;padding:20px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="color:#1a0000;font-size:1rem">&#128276; Yeni Randevu Talepleri</h3>
+          <button onclick="document.getElementById('yeniRandevuModal').style.display='none'" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#888">&#10005;</button>
+        </div>
+        <div id="yeniRandevuList"></div>
+        <button onclick="document.getElementById('yeniRandevuModal').style.display='none';location.reload()" class="btn" style="width:100%;margin-top:12px">Kapat ve Yenile</button>
+      </div>
+    </div>
+
     <!-- Paket Duzenle Modal -->
     <div id='apModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center'>
       <div style='background:#fff;border-radius:14px;width:92%;max-width:420px;padding:24px'>
@@ -4083,6 +4176,137 @@ async def admin_destek_sil(ticket_id: int = Form(...), session: str = Cookie(def
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
+
+@app.get("/firma/yeni-randevular", response_class=JSONResponse)
+def firma_yeni_randevular(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"randevular": [], "unread": 0})
+    conn = get_conn()
+    cur = conn.cursor()
+    # Beklemedeki randevulari getir
+    cur.execute("""
+        SELECT a.*, u.ad_soyad, u.telefon as user_tel
+        FROM appointments a JOIN users u ON u.id=a.user_id
+        WHERE a.firm_id=%s AND a.durum='beklemede'
+        ORDER BY a.created_at DESC
+    """, (s["firm_id"],))
+    randevular = cur.fetchall()
+    unread = get_unread_count(s["firm_id"])
+    cur.close(); conn.close()
+    
+    result = []
+    for r in randevular:
+        arac = f"{r['arac_marka'] or ''} {r['arac_model'] or ''} {r['arac_yil'] or ''}".strip() or "Belirtilmedi"
+        result.append({
+            "id": r["id"],
+            "ad_soyad": r["ad_soyad"],
+            "telefon": r["user_tel"] or "",
+            "tarih": r["tarih"],
+            "saat": r["saat"],
+            "arac": arac,
+            "paket": r["paket"] or "",
+            "notlar": r["notlar"] or "",
+        })
+    return JSONResponse({"randevular": result, "unread": unread})
+
+
+@app.get("/firma/yeni-mesajlar", response_class=JSONResponse)
+def firma_yeni_mesajlar(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"mesajlar": []})
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT m.*, u.ad_soyad, a.tarih, a.saat
+        FROM messages m
+        JOIN appointments a ON a.id=m.appointment_id
+        JOIN users u ON u.id=a.user_id
+        WHERE a.firm_id=%s AND m.gonderen_tip='user'
+        AND m.created_at > NOW() - INTERVAL '30 seconds'
+        ORDER BY m.created_at DESC
+    """, (s["firm_id"],))
+    rows = cur.fetchall()
+    # Admin mesajlari
+    cur.execute("""
+        SELECT ac.*, am.konu FROM admin_chat ac
+        JOIN admin_messages am ON am.id=ac.ticket_id
+        WHERE am.sender_type='firma' AND am.sender_id=%s
+        AND ac.gonderen='admin'
+        AND ac.created_at > NOW() - INTERVAL '30 seconds'
+    """, (s["firm_id"],))
+    admin_rows = cur.fetchall()
+    cur.close(); conn.close()
+    result = []
+    for r in rows:
+        result.append({"tip":"randevu","ad": r["ad_soyad"],"mesaj": r["mesaj"],"apt_id": r["appointment_id"],"tarih": r["tarih"],"saat": r["saat"]})
+    for r in admin_rows:
+        result.append({"tip":"admin","ad":"Admin","mesaj": r["mesaj"],"konu": r["konu"],"ticket_id": r["ticket_id"]})
+    return JSONResponse({"mesajlar": result})
+
+@app.get("/kullanici/yeni-mesajlar", response_class=JSONResponse)
+def kullanici_yeni_mesajlar(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "user":
+        return JSONResponse({"mesajlar": []})
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT m.*, f.unvan, a.tarih, a.saat
+        FROM messages m
+        JOIN appointments a ON a.id=m.appointment_id
+        JOIN firm_accounts f ON f.id=a.firm_id
+        WHERE a.user_id=%s AND m.gonderen_tip='firma'
+        AND m.created_at > NOW() - INTERVAL '30 seconds'
+        ORDER BY m.created_at DESC
+    """, (s["user_id"],))
+    rows = cur.fetchall()
+    # Admin mesajlari
+    cur.execute("""
+        SELECT ac.*, am.konu FROM admin_chat ac
+        JOIN admin_messages am ON am.id=ac.ticket_id
+        WHERE am.sender_type='kullanici' AND am.sender_id=%s
+        AND ac.gonderen='admin'
+        AND ac.created_at > NOW() - INTERVAL '30 seconds'
+    """, (s["user_id"],))
+    admin_rows = cur.fetchall()
+    # Randevu durum bildirimleri
+    cur.execute("""
+        SELECT * FROM notifications
+        WHERE user_id=%s AND okundu=0
+        AND created_at > NOW() - INTERVAL '30 seconds'
+    """, (s["user_id"],))
+    notif_rows = cur.fetchall()
+    cur.close(); conn.close()
+    result = []
+    for r in rows:
+        result.append({"tip":"randevu","ad": r["unvan"],"mesaj": r["mesaj"],"apt_id": r["appointment_id"],"tarih": r["tarih"],"saat": r["saat"]})
+    for r in admin_rows:
+        result.append({"tip":"admin","ad":"Admin","mesaj": r["mesaj"],"konu": r["konu"],"ticket_id": r["ticket_id"]})
+    for r in notif_rows:
+        result.append({"tip":"bildirim","ad":"Sistem","mesaj": r["mesaj"]})
+    return JSONResponse({"mesajlar": result})
+
+@app.get("/admin/yeni-mesajlar", response_class=JSONResponse)
+def admin_yeni_mesajlar(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"mesajlar": []})
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ac.*, am.konu, am.sender_name FROM admin_chat ac
+        JOIN admin_messages am ON am.id=ac.ticket_id
+        WHERE ac.gonderen != 'admin'
+        AND ac.created_at > NOW() - INTERVAL '30 seconds'
+        ORDER BY ac.created_at DESC
+    """)
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    result = [{"tip":"destek","ad": r["sender_name"],"mesaj": r["mesaj"],"konu": r["konu"],"ticket_id": r["ticket_id"]} for r in rows]
+    return JSONResponse({"mesajlar": result})
+
 
 if __name__ == "__main__":
     import uvicorn
