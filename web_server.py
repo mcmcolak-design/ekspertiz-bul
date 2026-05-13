@@ -1119,6 +1119,21 @@ async def randevu_olustur(
         return JSONResponse({"error": "Firma bulunamadi"}, status_code=404)
     if not paket or not paket.strip():
         return JSONResponse({"error": "Lutfen bir paket secin"})
+    # Ayni saatte veya 30 dk icinde baska randevu cakismasi kontrolu
+    import datetime as _dt
+    try:
+        apt_dt = _dt.datetime.strptime(f"{tarih} {saat}", "%Y-%m-%d %H:%M")
+        cur.execute(
+            "SELECT saat FROM appointments WHERE firm_id=%s AND tarih=%s AND durum NOT IN ('iptal','reddedildi')",
+            (firm_id, tarih)
+        )
+        for row in cur.fetchall():
+            ex_dt = _dt.datetime.strptime(f"{tarih} {row['saat']}", "%Y-%m-%d %H:%M")
+            fark = abs((apt_dt - ex_dt).total_seconds()) / 60
+            if fark < 30:
+                return JSONResponse({"error": f"{row['saat']} saatinde randevu mevcut. En az 30 dakika aralikli randevu alinabilir."})
+    except _dt.datetime.strptime.__class__ as e:
+        print(f"Cakisma kontrol hatasi: {e}")
     # Firma pasif mi?
     if firm.get("durum") == "pasif":
         notu = firm.get("durum_notu") or "Firma simdilik randevu almiyor."
@@ -1250,6 +1265,7 @@ def firma_bildirimler(session: str = Cookie(default=None)):
 async def paket_ekle(
     paket_adi: str = Form(...),
     fiyat: int = Form(...),
+    sure_dk: int = Form(default=60),
     icerik: str = Form(default=""),
     session: str = Cookie(default=None)
 ):
@@ -1258,8 +1274,8 @@ async def paket_ekle(
         return JSONResponse({"error": "Yetkisiz"}, status_code=401)
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, icerik) VALUES (%s,%s,%s,%s)",
-                 (s["firm_id"], paket_adi, fiyat, icerik))
+    cur.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, sure_dk, icerik) VALUES (%s,%s,%s,%s,%s)",
+                 (s["firm_id"], paket_adi, fiyat, sure_dk, icerik))
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
@@ -1645,9 +1661,10 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         pkg_rows += f"""<tr id="pkg-row-{p['id']}">
           <td style="padding:8px"><span id="pkg-adi-{p['id']}">{p['paket_adi']}</span></td>
           <td style="padding:8px"><span id="pkg-fiyat-{p['id']}">{p['fiyat']:,} TL</span></td>
+          <td style="padding:8px"><span id="pkg-sure-{p['id']}">{p.get('sure_dk',60)} dk</span></td>
           <td style="padding:8px;font-size:.78rem;color:#666"><span id="pkg-icerik-{p['id']}">{p['icerik'] or '-'}</span></td>
           <td style="padding:8px;white-space:nowrap">
-            <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenleBasla({p['id']},'{p['paket_adi']}',{p['fiyat']},'{p['icerik'] or ''}')">Duzenle</button>
+            <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenleBasla({p['id']},'{p['paket_adi']}',{p['fiyat']},{p.get('sure_dk',60)},'{p['icerik'] or ''}')">Duzenle</button>
             <button class="btn-red" style="font-size:.75rem;padding:4px 8px" onclick="silPaket({p['id']})">Sil</button>
           </td>
         </tr>"""
@@ -1719,6 +1736,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
           <thead><tr style="background:#f5f0f0">
             <th style="padding:8px;text-align:left">Paket</th>
             <th style="padding:8px;text-align:left">Fiyat</th>
+            <th style="padding:8px;text-align:left">Sure</th>
             <th style="padding:8px;text-align:left">İçerik</th>
             <th style="padding:8px"></th>
           </tr></thead>
@@ -1728,8 +1746,9 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
           <div style="font-weight:600;margin-bottom:10px">Yeni Paket Ekle</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input id="p-adi" placeholder="Paket adı" style="flex:1;min-width:120px;padding:8px;border:1px solid #ddd;border-radius:8px">
-            <input id="p-fiyat" type="number" placeholder="Fiyat (TL)" style="width:120px;padding:8px;border:1px solid #ddd;border-radius:8px">
-            <input id="p-icerik" placeholder="İçerik" style="flex:2;min-width:180px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <input id="p-fiyat" type="number" placeholder="Fiyat (TL)" style="width:110px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <input id="p-sure" type="number" placeholder="Sure (dk)" value="60" style="width:100px;padding:8px;border:1px solid #ddd;border-radius:8px">
+            <input id="p-icerik" placeholder="İçerik" style="flex:2;min-width:160px;padding:8px;border:1px solid #ddd;border-radius:8px">
             <button class="btn" onclick="paketEkle()">Ekle</button>
           </div>
         </div>
@@ -1767,10 +1786,11 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         .then(function(){{location.reload();}});
     }}
 
-    function duzenleBasla(id, adi, fiyat, icerik){{
+    function duzenleBasla(id, adi, fiyat, sure, icerik){{
       document.getElementById('edit-pkg-id').value=id;
       document.getElementById('edit-pkg-adi').value=adi;
       document.getElementById('edit-pkg-fiyat').value=fiyat;
+      document.getElementById('edit-pkg-sure').value=sure||60;
       document.getElementById('edit-pkg-icerik').value=icerik;
       document.getElementById('editPaketModal').style.display='flex';
     }}
@@ -1779,6 +1799,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
       fd.append('paket_id',document.getElementById('edit-pkg-id').value);
       fd.append('paket_adi',document.getElementById('edit-pkg-adi').value);
       fd.append('fiyat',document.getElementById('edit-pkg-fiyat').value);
+      fd.append('sure_dk',document.getElementById('edit-pkg-sure').value||60);
       fd.append('icerik',document.getElementById('edit-pkg-icerik').value);
       if(!fd.get('paket_adi')||!fd.get('fiyat')){{alert('Ad ve fiyat zorunlu!');return;}}
       fetch('/firma/paket/guncelle',{{method:'POST',body:fd}})
@@ -1788,11 +1809,13 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     function paketEkle(){{
       var adi=document.getElementById('p-adi').value;
       var fiyat=document.getElementById('p-fiyat').value;
+      var sure=document.getElementById('p-sure').value||60;
       var icerik=document.getElementById('p-icerik').value;
       if(!adi||!fiyat){{alert('Paket adı ve fiyat zorunlu!');return;}}
       var fd=new FormData();
       fd.append('paket_adi',adi);
       fd.append('fiyat',fiyat);
+      fd.append('sure_dk',sure);
       fd.append('icerik',icerik);
       fetch('/firma/paket/ekle',{{method:'POST',body:fd}})
         .then(function(r){{return r.json();}})
@@ -1870,6 +1893,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         <input type="hidden" id="edit-pkg-id">
         <div class="form-group"><label>Paket Adi</label><input type="text" id="edit-pkg-adi"></div>
         <div class="form-group"><label>Fiyat (TL)</label><input type="number" id="edit-pkg-fiyat"></div>
+        <div class="form-group"><label>Sure (dakika)</label><input type="number" id="edit-pkg-sure" placeholder="60"></div>
         <div class="form-group"><label>Icerik</label><input type="text" id="edit-pkg-icerik" placeholder="Paket icerigi..."></div>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="btn" style="flex:1" onclick="duzenleKaydet()">Kaydet</button>
@@ -2038,25 +2062,71 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     markalar = ["","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mazda","Mercedes-Benz","Nissan","Opel","Peugeot","Renault","Skoda","Toyota","Volkswagen","Diger"]
     marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
     yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
-    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,30]])
+    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,15,30,45]])
     pkg_opts = "<option value=''>-- Paket secin (zorunlu) --</option>"
     for p in paketler:
-        pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
+        sure = p.get("sure_dk", 60) or 60
+        pkg_opts += "<option value='"+str(p["paket_adi"])+"' data-id='"+str(p["id"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL ("+str(sure)+" dk)</option>"
     fid_str = str(firm_db_id)
     body = _base_style()
     body += "<body>" + _topbar("Randevu Al", "/", "Ana Sayfa")
     body += "<div class='wrap' style='max-width:500px'><div class='card'>"
     body += "<h2>&#128197; " + firm_name + " - Randevu Al</h2><div id='msg'></div>"
-    body += "<div class='form-group'><label>Tarih</label><input type='date' id='tarih' min='" + today + "'></div>"
-    body += "<div class='form-group'><label>Saat</label><select id='saat'>" + saat_opts + "</select></div>"
+    body += "<div class='form-group'><label>Tarih</label><input type='date' id='tarih' min='" + today + "' onchange='loadSaatler()'></div>"
+    body += "<div id='saat-container' style='margin-bottom:12px'>"
+    body += "<div class='form-group'><label>Musait Saatler <small style='color:#888'>(Tarih sectikten sonra gorunur)</small></label><div id='saat-grid' style='display:flex;flex-wrap:wrap;gap:6px'></div></div>"
+    body += "<input type='hidden' id='saat'></div>"
     body += "<div class='form-group'><label>Arac Markasi</label><select id='marka'>" + marka_opts + "</select></div>"
     body += "<div class='form-group'><label>Model</label><input type='text' id='model' placeholder='Ornek: Clio, Focus'></div>"
     body += "<div class='form-group'><label>Yil</label><select id='yil'>" + yil_opts + "</select></div>"
-    body += "<div class='form-group'><label>Paket</label><select id='paket'>" + pkg_opts + "</select></div>"
+    body += "<div class='form-group'><label>Paket</label><select id='paket' onchange='loadSaatler()'>" + pkg_opts + "</select></div>"
     body += "<div class='form-group'><label>Notlar</label><textarea id='notlar' rows='2'></textarea></div>"
     body += "<button class='btn' style='width:100%' onclick='submitR()'>Randevu Gonder</button>"
     body += "</div></div>"
-    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}if(!fd.get('paket')){alert('Lutfen bir paket secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "<script>"
+    body += "var FIRM_ID='" + fid_str + "';"
+    body += "var SEL_SAAT=null;"
+    body += "function loadSaatler(){"
+    body += "  var tarih=document.getElementById('tarih').value;"
+    body += "  var paketId=document.getElementById('paket').value;"
+    body += "  if(!tarih)return;"
+    body += "  var paketSelect=document.getElementById('paket');"
+    body += "  var paketOpt=paketSelect.options[paketSelect.selectedIndex];"
+    body += "  var paketDbId=paketOpt?paketOpt.getAttribute('data-id'):0;"
+    body += "  fetch('/randevu/'+FIRM_ID+'/musait-saatler?tarih='+tarih+'&paket_id='+(paketDbId||0))"
+    body += "    .then(r=>r.json()).then(d=>{"
+    body += "      var grid=document.getElementById('saat-grid');"
+    body += "      grid.innerHTML='';"
+    body += "      if(d.mesaj){grid.innerHTML='<p style=\"color:#dc3545;font-size:.85rem\">'+d.mesaj+'</p>';return;}"
+    body += "      d.slots.forEach(function(s){"
+    body += "        var btn=document.createElement('button');"
+    body += "        btn.type='button';"
+    body += "        btn.textContent=s.saat;"
+    body += "        btn.disabled=s.dolu;"
+    body += "        btn.style.cssText='padding:6px 12px;border-radius:8px;border:2px solid '+( s.dolu?'#ddd':'#e53535')+';background:'+( s.dolu?'#f5f5f5':'#fff')+';color:'+( s.dolu?'#bbb':'#e53535')+';cursor:'+( s.dolu?'not-allowed':'pointer')+';font-size:.82rem;font-weight:600';"
+    body += "        if(!s.dolu){btn.onclick=function(){SEL_SAAT=s.saat;document.getElementById('saat').value=s.saat;grid.querySelectorAll('button').forEach(b=>b.style.background='#fff');this.style.background='#e53535';this.style.color='#fff';};}"
+    body += "        grid.appendChild(btn);"
+    body += "      });"
+    body += "    });"
+    body += "}"
+    body += "function submitR(){"
+    body += "  var fd=new FormData();"
+    body += "  fd.append('firm_id','" + fid_str + "');"
+    body += "  var tarih=document.getElementById('tarih').value;"
+    body += "  var saat=document.getElementById('saat').value;"
+    body += "  fd.append('tarih',tarih);"
+    body += "  fd.append('saat',saat);"
+    body += "  fd.append('arac_marka',document.getElementById('marka').value);"
+    body += "  fd.append('arac_model',document.getElementById('model').value);"
+    body += "  fd.append('arac_yil',document.getElementById('yil').value);"
+    body += "  fd.append('paket',document.getElementById('paket').value);"
+    body += "  fd.append('notlar',document.getElementById('notlar').value);"
+    body += "  if(!tarih){alert('Lutfen tarih secin!');return;}"
+    body += "  if(!saat){alert('Lutfen saat secin!');return;}"
+    body += "  if(!fd.get('paket')){alert('Lutfen bir paket secin!');return;}"
+    body += "  fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});"
+    body += "}"
+    body += "</script>"
     body += "</body></html>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
 
@@ -2388,7 +2458,7 @@ def calisma_saatleri_page(session: str = Cookie(default=None)):
     durum = firm["durum"] if firm else "aktif"
     durum_notu = firm["durum_notu"] if firm else ""
 
-    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,30]])
+    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,15,30,45]])
 
     gun_rows = ""
     for i, gun in enumerate(GUNLER):
@@ -3109,6 +3179,7 @@ async def paket_guncelle(
     paket_id: int = Form(...),
     paket_adi: str = Form(...),
     fiyat: int = Form(...),
+    sure_dk: int = Form(default=60),
     icerik: str = Form(default=""),
     session: str = Cookie(default=None)
 ):
@@ -3117,11 +3188,81 @@ async def paket_guncelle(
         return JSONResponse({"error": "Yetkisiz"}, status_code=401)
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE firm_packages SET paket_adi=%s, fiyat=%s, icerik=%s WHERE id=%s AND firm_id=%s",
-                (paket_adi, fiyat, icerik, paket_id, s["firm_id"]))
+    cur.execute("UPDATE firm_packages SET paket_adi=%s, fiyat=%s, sure_dk=%s, icerik=%s WHERE id=%s AND firm_id=%s",
+                (paket_adi, fiyat, sure_dk, icerik, paket_id, s["firm_id"]))
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
+
+
+@app.get("/randevu/{firm_db_id}/musait-saatler")
+def musait_saatler(firm_db_id: int, tarih: str, paket_id: int = 0):
+    import datetime
+    conn = get_conn()
+    cur = conn.cursor()
+    # Secilen paketin suresini al
+    sure_dk = 60
+    if paket_id:
+        cur.execute("SELECT sure_dk FROM firm_packages WHERE id=%s AND firm_id=%s AND aktif=1", (paket_id, firm_db_id))
+        pkg = cur.fetchone()
+        if pkg:
+            sure_dk = pkg["sure_dk"] or 60
+    # Calisma saatlerini al
+    cur.execute("SELECT * FROM firm_working_hours WHERE firm_id=%s", (firm_db_id,))
+    wh = cur.fetchone()
+    gun_map = {0:"pazartesi",1:"sali",2:"carsamba",3:"persembe",4:"cuma",5:"cumartesi",6:"pazar"}
+    try:
+        tarih_dt = datetime.datetime.strptime(tarih, "%Y-%m-%d")
+        gun = gun_map[tarih_dt.weekday()]
+    except:
+        cur.close(); conn.close()
+        return JSONResponse({"error": "Gecersiz tarih", "slots": []})
+    # Firma kapali mi?
+    if wh and wh[f"{gun}_kapali"]:
+        cur.close(); conn.close()
+        return JSONResponse({"slots": [], "mesaj": "Firma bu gun kapali"})
+    # Calisma saatleri
+    if wh:
+        acilis_str = wh[f"{gun}_acilis"] or "09:00"
+        kapanis_str = wh[f"{gun}_kapanis"] or "18:00"
+    else:
+        acilis_str = "09:00"
+        kapanis_str = "18:00"
+    acilis = datetime.datetime.strptime(f"{tarih} {acilis_str}", "%Y-%m-%d %H:%M")
+    kapanis = datetime.datetime.strptime(f"{tarih} {kapanis_str}", "%Y-%m-%d %H:%M")
+    # Mevcut randevulari al
+    cur.execute("""
+        SELECT a.saat, p.sure_dk
+        FROM appointments a
+        LEFT JOIN firm_packages p ON p.paket_adi=a.paket AND p.firm_id=a.firm_id
+        WHERE a.firm_id=%s AND a.tarih=%s AND a.durum NOT IN ('iptal','reddedildi')
+    """, (firm_db_id, tarih))
+    dolu_randevular = []
+    for r in cur.fetchall():
+        try:
+            baslangic = datetime.datetime.strptime(f"{tarih} {r['saat']}", "%Y-%m-%d %H:%M")
+            sure = r["sure_dk"] or 60
+            bitis = baslangic + datetime.timedelta(minutes=sure)
+            dolu_randevular.append((baslangic, bitis))
+        except:
+            pass
+    cur.close(); conn.close()
+    # 15 dakikalik slotlari olustur
+    slots = []
+    t = acilis
+    while t + datetime.timedelta(minutes=sure_dk) <= kapanis:
+        saat_str = t.strftime("%H:%M")
+        bitis = t + datetime.timedelta(minutes=sure_dk)
+        # Bu slot dolu mu?
+        dolu = False
+        for (d_bas, d_bit) in dolu_randevular:
+            # Cakisma var mi?
+            if t < d_bit and bitis > d_bas:
+                dolu = True
+                break
+        slots.append({"saat": saat_str, "dolu": dolu})
+        t += datetime.timedelta(minutes=15)
+    return JSONResponse({"slots": slots, "sure_dk": sure_dk})
 
 
 if __name__ == "__main__":

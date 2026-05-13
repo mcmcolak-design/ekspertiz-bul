@@ -148,9 +148,13 @@ def init_db():
             firm_id INTEGER NOT NULL,
             paket_adi TEXT NOT NULL,
             fiyat INTEGER NOT NULL,
+            sure_dk INTEGER DEFAULT 60,
             icerik TEXT,
             aktif INTEGER DEFAULT 1
         )
+    """)
+    cur.execute("""
+        ALTER TABLE firm_packages ADD COLUMN IF NOT EXISTS sure_dk INTEGER DEFAULT 60
     """)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS firm_working_hours (
