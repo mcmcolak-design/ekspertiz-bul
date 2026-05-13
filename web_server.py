@@ -368,12 +368,13 @@ function toggleFiyat(){
   applyFilters();
 }
 
+function trLower(s){ return s.replace(/İ/g,'i').replace(/I/g,'ı').replace(/Ğ/g,'ğ').replace(/Ü/g,'ü').replace(/Ş/g,'ş').replace(/Ö/g,'ö').replace(/Ç/g,'ç').toLowerCase(); }
 function applyFilters(){
-  var q=document.getElementById('searchInput').value.toLowerCase().trim();
+  var q=trLower(document.getElementById('searchInput').value.trim());
   var il=document.getElementById('ilSelect').value;
   var ilce=document.getElementById('ilceSelect').value;
   filtered=ALL_FIRMS.filter(function(f){
-    var matchQ=!q||(f.name&&f.name.toLowerCase().includes(q));
+    var matchQ=!q||(f.name&&trLower(f.name).includes(q));
     var matchIl=!il||f.city===il;
     var matchIlce=!ilce||(f.address&&f.address.includes(ilce));
     var matchFiyat=!onlyFiyatli||(PRICES[f.id]&&PRICES[f.id].length>0);
