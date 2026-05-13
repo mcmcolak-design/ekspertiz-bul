@@ -727,6 +727,21 @@ document.addEventListener('click', function(e){
 <div class="tipbox" id="tipbox"></div>
 <div class="tip-popup" id="tipPopup"><span id="tipPopupText"></span><span class="tip-popup-close" onclick="closeTipPopup()">Kapat &#10005;</span></div>
 
+<!-- Paket Duzenle Modal -->
+<div id="editPaketModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;padding:24px">
+    <h3 style="margin-bottom:16px;color:#1a0000">&#128221; Paketi Duzenle</h3>
+    <input type="hidden" id="edit-pkg-id">
+    <div class="form-group"><label>Paket Adi</label><input type="text" id="edit-pkg-adi"></div>
+    <div class="form-group"><label>Fiyat (TL)</label><input type="number" id="edit-pkg-fiyat"></div>
+    <div class="form-group"><label>Icerik</label><input type="text" id="edit-pkg-icerik" placeholder="Paket icerigi..."></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn" style="flex:1" onclick="duzenleKaydet()">Kaydet</button>
+      <button class="btn-outline" style="flex:1" onclick="document.getElementById('editPaketModal').style.display='none'">Vazgec</button>
+    </div>
+  </div>
+</div>
+
 <!-- Karsilastirma Modal -->
 <div class="modal-bg" id="cmpModal">
   <div class="modal">
@@ -1627,11 +1642,14 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
     # Paket satirlari
     pkg_rows = ""
     for p in paketler:
-        pkg_rows += f"""<tr>
-          <td style="padding:8px">{p['paket_adi']}</td>
-          <td style="padding:8px">{p['fiyat']:,} TL</td>
-          <td style="padding:8px;font-size:.78rem;color:#666">{p['icerik'] or '-'}</td>
-          <td style="padding:8px"><button class="btn-red" onclick="silPaket({p['id']})">Sil</button></td>
+        pkg_rows += f"""<tr id="pkg-row-{p['id']}">
+          <td style="padding:8px"><span id="pkg-adi-{p['id']}">{p['paket_adi']}</span></td>
+          <td style="padding:8px"><span id="pkg-fiyat-{p['id']}">{p['fiyat']:,} TL</span></td>
+          <td style="padding:8px;font-size:.78rem;color:#666"><span id="pkg-icerik-{p['id']}">{p['icerik'] or '-'}</span></td>
+          <td style="padding:8px;white-space:nowrap">
+            <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenleBasla({p['id']},'{p['paket_adi']}',{p['fiyat']},'{p['icerik'] or ''}')">Duzenle</button>
+            <button class="btn-red" style="font-size:.75rem;padding:4px 8px" onclick="silPaket({p['id']})">Sil</button>
+          </td>
         </tr>"""
 
     # Bildirim badge
@@ -1749,6 +1767,24 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         .then(function(){{location.reload();}});
     }}
 
+    function duzenleBasla(id, adi, fiyat, icerik){{
+      document.getElementById('edit-pkg-id').value=id;
+      document.getElementById('edit-pkg-adi').value=adi;
+      document.getElementById('edit-pkg-fiyat').value=fiyat;
+      document.getElementById('edit-pkg-icerik').value=icerik;
+      document.getElementById('editPaketModal').style.display='flex';
+    }}
+    function duzenleKaydet(){{
+      var fd=new FormData();
+      fd.append('paket_id',document.getElementById('edit-pkg-id').value);
+      fd.append('paket_adi',document.getElementById('edit-pkg-adi').value);
+      fd.append('fiyat',document.getElementById('edit-pkg-fiyat').value);
+      fd.append('icerik',document.getElementById('edit-pkg-icerik').value);
+      if(!fd.get('paket_adi')||!fd.get('fiyat')){{alert('Ad ve fiyat zorunlu!');return;}}
+      fetch('/firma/paket/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json())
+        .then(d=>{{if(d.success){{document.getElementById('editPaketModal').style.display='none';location.reload();}}else alert(d.error);}});
+    }}
     function paketEkle(){{
       var adi=document.getElementById('p-adi').value;
       var fiyat=document.getElementById('p-fiyat').value;
@@ -3054,6 +3090,26 @@ async def randevu_mesaj_gonder(
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
+
+@app.post("/firma/paket/guncelle")
+async def paket_guncelle(
+    paket_id: int = Form(...),
+    paket_adi: str = Form(...),
+    fiyat: int = Form(...),
+    icerik: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "firma":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE firm_packages SET paket_adi=%s, fiyat=%s, icerik=%s WHERE id=%s AND firm_id=%s",
+                (paket_adi, fiyat, icerik, paket_id, s["firm_id"]))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
 
 if __name__ == "__main__":
     import uvicorn
