@@ -1863,9 +1863,22 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         }});
     }}, 30000);
     </script>
+    <!-- Paket Duzenle Modal -->
+    <div id="editPaketModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;padding:24px">
+        <h3 style="margin-bottom:16px;color:#1a0000">&#128221; Paketi Duzenle</h3>
+        <input type="hidden" id="edit-pkg-id">
+        <div class="form-group"><label>Paket Adi</label><input type="text" id="edit-pkg-adi"></div>
+        <div class="form-group"><label>Fiyat (TL)</label><input type="number" id="edit-pkg-fiyat"></div>
+        <div class="form-group"><label>Icerik</label><input type="text" id="edit-pkg-icerik" placeholder="Paket icerigi..."></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" style="flex:1" onclick="duzenleKaydet()">Kaydet</button>
+          <button class="btn-outline" style="flex:1" onclick="document.getElementById('editPaketModal').style.display='none'">Vazgec</button>
+        </div>
+      </div>
+    </div>
     </body></html>"""
-
-@app.post("/scrape")
+pp.post("/scrape")
 async def trigger_scrape():
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
