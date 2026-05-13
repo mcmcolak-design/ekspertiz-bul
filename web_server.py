@@ -2730,8 +2730,10 @@ def admin_panel(session: str = Cookie(default=None)):
         </div>
       </div>
       <div style='display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap'>
-        <a href='/admin/kullanicilar' class='btn' style='font-size:.85rem'>&#128100; Kullanicilari Yonet</a>
-        <a href='/admin/firmalar' class='btn' style='font-size:.85rem'>&#127970; Firmalari Yonet</a>
+        <a href='/admin/kullanicilar' class='btn' style='font-size:.85rem'>&#128100; Kullanicilar</a>
+        <a href='/admin/firmalar' class='btn' style='font-size:.85rem'>&#127970; Firmalar</a>
+        <a href='/admin/randevular' class='btn' style='font-size:.85rem'>&#128197; Randevular</a>
+        <a href='/admin/mesajlar-tum' class='btn' style='font-size:.85rem'>&#128172; Mesajlar</a>
       </div>
       <div style='display:none'>
       </div>
@@ -3428,6 +3430,7 @@ def admin_firmalar(session: str = Cookie(default=None)):
           <td style="padding:8px">{f['email']}</td>
           <td style="padding:8px">{durum_badge}</td>
           <td style="padding:8px">
+            <a href="/admin/firma/{f['id']}/detay" class="btn-outline" style="font-size:.75rem;padding:4px 8px">Detay</a>
             <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenle({f['id']},'{f['unvan']}','{f['il'] or ''}','{f['ilce'] or ''}','{f['telefon']}','{f['email']}','{f.get('durum','aktif')}')">Duzenle</button>
             <button class="btn-red" style="font-size:.75rem;padding:4px 8px" onclick="silFirma({f['id']})">Sil</button>
           </td>
@@ -3542,6 +3545,464 @@ async def admin_firma_sil(firm_id: int = Form(...), session: str = Cookie(defaul
     cur.execute("DELETE FROM firm_packages WHERE firm_id=%s", (firm_id,))
     cur.execute("DELETE FROM firm_working_hours WHERE firm_id=%s", (firm_id,))
     cur.execute("DELETE FROM firm_accounts WHERE id=%s", (firm_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+
+# ============================================================
+# ADMIN - RANDEVU VE MESAJ YONETIMI
+# ============================================================
+
+@app.get("/admin/randevular", response_class=HTMLResponse)
+def admin_randevular(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT a.*, u.ad_soyad, u.email as user_email, f.unvan as firma_adi
+        FROM appointments a
+        JOIN users u ON u.id=a.user_id
+        JOIN firm_accounts f ON f.id=a.firm_id
+        ORDER BY a.created_at DESC
+        LIMIT 200
+    """)
+    apts = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for a in apts:
+        arac = f"{a['arac_marka'] or ''} {a['arac_model'] or ''} {a['arac_yil'] or ''}".strip() or "-"
+        rows += f"""<tr>
+          <td style="padding:8px">{a['id']}</td>
+          <td style="padding:8px">{a['ad_soyad']}<br><small style="color:#888">{a['user_email']}</small></td>
+          <td style="padding:8px">{a['firma_adi']}</td>
+          <td style="padding:8px">{a['tarih']} {a['saat']}</td>
+          <td style="padding:8px">{arac}</td>
+          <td style="padding:8px">{a['paket'] or '-'}</td>
+          <td style="padding:8px"><span class="badge badge-{a['durum']}">{a['durum'].title()}</span></td>
+          <td style="padding:8px;white-space:nowrap">
+            <select onchange="durumGuncelle({a['id']},this.value)" style="font-size:.75rem;padding:3px;border:1px solid #ddd;border-radius:6px">
+              <option value="">Durum Degistir</option>
+              {''.join([f"<option value='{d}'>{d.title()}</option>" for d in ['beklemede','onaylandi','tamamlandi','iptal','reddedildi']])}
+            </select>
+            <button class="btn-red" style="font-size:.72rem;padding:3px 7px;margin-top:3px" onclick="silRandevu({a['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    body = _base_style() + "<body>" + _topbar("Randevular", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap'>
+      <div class='card'>
+        <h2>&#128197; Randevular (son 200)</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px'>ID</th>
+            <th style='padding:8px;text-align:left'>Kullanici</th>
+            <th style='padding:8px;text-align:left'>Firma</th>
+            <th style='padding:8px;text-align:left'>Tarih/Saat</th>
+            <th style='padding:8px;text-align:left'>Arac</th>
+            <th style='padding:8px;text-align:left'>Paket</th>
+            <th style='padding:8px;text-align:left'>Durum</th>
+            <th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody>{rows}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <script>
+    function durumGuncelle(id, durum){{
+      if(!durum)return;
+      if(!confirm('Randevu durumunu "'+durum+'" olarak degistirmek istiyor musunuz?'))return;
+      var fd=new FormData();fd.append('appointment_id',id);fd.append('durum',durum);
+      fetch('/admin/randevu/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    function silRandevu(id){{
+      if(!confirm('Bu randevuyu silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('appointment_id',id);
+      fetch('/admin/randevu/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevular</title>" + body)
+
+@app.post("/admin/randevu/guncelle")
+async def admin_randevu_guncelle(
+    appointment_id: int = Form(...),
+    durum: str = Form(...),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE appointments SET durum=%s WHERE id=%s", (durum, appointment_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/randevu/sil")
+async def admin_randevu_sil(appointment_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM messages WHERE appointment_id=%s", (appointment_id,))
+    cur.execute("DELETE FROM appointments WHERE id=%s", (appointment_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.get("/admin/mesajlar-tum", response_class=HTMLResponse)
+def admin_mesajlar_tum(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    # Randevu mesajlari
+    cur.execute("""
+        SELECT m.*, 
+               u.ad_soyad as user_ad, f.unvan as firma_adi,
+               a.tarih, a.saat
+        FROM messages m
+        JOIN appointments a ON a.id=m.appointment_id
+        JOIN users u ON u.id=a.user_id
+        JOIN firm_accounts f ON f.id=a.firm_id
+        ORDER BY m.created_at DESC
+        LIMIT 100
+    """)
+    mesajlar = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for m in mesajlar:
+        gonderen = m['user_ad'] if m['gonderen_tip'] == 'user' else m['firma_adi']
+        rows += f"""<tr>
+          <td style="padding:8px">{m['appointment_id']}</td>
+          <td style="padding:8px">{m['user_ad']}</td>
+          <td style="padding:8px">{m['firma_adi']}</td>
+          <td style="padding:8px"><b>{gonderen}</b></td>
+          <td style="padding:8px">{m['mesaj'][:100]}{'...' if len(m['mesaj'])>100 else ''}</td>
+          <td style="padding:8px;font-size:.75rem;color:#888">{str(m['created_at'])[:16]}</td>
+          <td style="padding:8px">
+            <button class="btn-red" style="font-size:.72rem;padding:3px 7px" onclick="silMesaj({m['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    body = _base_style() + "<body>" + _topbar("Tum Mesajlar", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap'>
+      <div class='card'>
+        <h2>&#128172; Randevu Mesajlari (son 100)</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px'>Randevu</th>
+            <th style='padding:8px;text-align:left'>Kullanici</th>
+            <th style='padding:8px;text-align:left'>Firma</th>
+            <th style='padding:8px;text-align:left'>Gonderen</th>
+            <th style='padding:8px;text-align:left'>Mesaj</th>
+            <th style='padding:8px;text-align:left'>Tarih</th>
+            <th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody>{rows if rows else '<tr><td colspan="7" style="padding:16px;text-align:center;color:#aaa">Mesaj yok</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <script>
+    function silMesaj(id){{
+      if(!confirm('Bu mesaji silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('mesaj_id',id);
+      fetch('/admin/mesaj/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Mesajlar</title>" + body)
+
+@app.post("/admin/mesaj/sil")
+async def admin_mesaj_sil(mesaj_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM messages WHERE id=%s", (mesaj_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+
+# ============================================================
+# ADMIN - PAKET VE CALISMA SAATI YONETIMI
+# ============================================================
+
+@app.get("/admin/firma/{firm_id}/detay", response_class=HTMLResponse)
+def admin_firma_detay(firm_id: int, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_accounts WHERE id=%s", (firm_id,))
+    firm = cur.fetchone()
+    if not firm:
+        cur.close(); conn.close()
+        return HTMLResponse("<p>Firma bulunamadi</p>", status_code=404)
+    cur.execute("SELECT * FROM firm_packages WHERE firm_id=%s ORDER BY id", (firm_id,))
+    paketler = cur.fetchall()
+    cur.execute("SELECT * FROM firm_working_hours WHERE firm_id=%s", (firm_id,))
+    wh = cur.fetchone()
+    cur.execute("""
+        SELECT a.*, u.ad_soyad FROM appointments a 
+        JOIN users u ON u.id=a.user_id
+        WHERE a.firm_id=%s ORDER BY a.created_at DESC LIMIT 20
+    """, (firm_id,))
+    randevular = cur.fetchall()
+    cur.close(); conn.close()
+
+    # Paket tablosu
+    pkg_rows = ""
+    for p in paketler:
+        pkg_rows += f"""<tr>
+          <td style="padding:8px">{p['paket_adi']}</td>
+          <td style="padding:8px">{p['fiyat']:,} TL</td>
+          <td style="padding:8px">{p.get('sure_dk',60)} dk</td>
+          <td style="padding:8px;font-size:.78rem">{p['icerik'] or '-'}</td>
+          <td style="padding:8px">{'Aktif' if p['aktif'] else 'Pasif'}</td>
+          <td style="padding:8px">
+            <button class="btn-outline" style="font-size:.72rem;padding:3px 7px" onclick="adminDuzenlePaket({p['id']},'{p['paket_adi']}',{p['fiyat']},{p.get('sure_dk',60)},'{p['icerik'] or ''}',{p['aktif']})">Duzenle</button>
+            <button class="btn-red" style="font-size:.72rem;padding:3px 7px" onclick="adminSilPaket({p['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    # Calisma saatleri
+    GUNLER = ['pazartesi','sali','carsamba','persembe','cuma','cumartesi','pazar']
+    GUN_LABELS = ['Pzt','Sal','Car','Per','Cum','Cmt','Paz']
+    wh_rows = ""
+    saat_opts = "".join([f'<option value="{h:02d}:{m:02d}">{h:02d}:{m:02d}</option>' for h in range(6,23) for m in [0,30]])
+    for i, gun in enumerate(GUNLER):
+        if wh:
+            ac = wh.get(f"{gun}_acilis","09:00") or "09:00"
+            ka = wh.get(f"{gun}_kapanis","18:00") or "18:00"
+            kap = wh.get(f"{gun}_kapali", False)
+        else:
+            ac = "09:00"; ka = "18:00"; kap = gun in ["cumartesi","pazar"]
+        ac_opts = saat_opts.replace(f'value="{ac}"', f'value="{ac}" selected')
+        ka_opts = saat_opts.replace(f'value="{ka}"', f'value="{ka}" selected')
+        kap_chk = "checked" if kap else ""
+        wh_rows += f"""<tr style="{'opacity:.5' if kap else ''}">
+          <td style="padding:6px;font-weight:600">{GUN_LABELS[i]}</td>
+          <td style="padding:6px"><select name="{gun}_acilis" {'disabled' if kap else ''}>{ac_opts}</select></td>
+          <td style="padding:6px">-</td>
+          <td style="padding:6px"><select name="{gun}_kapanis" {'disabled' if kap else ''}>{ka_opts}</select></td>
+          <td style="padding:6px"><label><input type="checkbox" name="{gun}_kapali" value="1" {kap_chk} onchange="toggleGunAdmin('{gun}',this.checked)"> Kapali</label></td>
+        </tr>"""
+
+    # Randevu listesi
+    apt_rows = ""
+    for a in randevular:
+        apt_rows += f"<tr><td style='padding:6px'>{a['ad_soyad']}</td><td style='padding:6px'>{a['tarih']} {a['saat']}</td><td style='padding:6px'>{a['paket'] or '-'}</td><td style='padding:6px'><span class='badge badge-{a['durum']}'>{a['durum'].title()}</span></td><td style='padding:6px'><button class='btn-red' style='font-size:.7rem;padding:2px 6px' onclick='silRandevuD({a['id']})'>Sil</button></td></tr>"
+
+    body = _base_style() + "<body>" + _topbar(firm['unvan'], "/admin/firmalar", "Firmalar")
+    body += f"""<div class='wrap'>
+      <!-- Paketler -->
+      <div class='card'>
+        <h2>&#128176; Paketler</h2>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:12px'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px;text-align:left'>Paket</th><th style='padding:8px'>Fiyat</th>
+            <th style='padding:8px'>Sure</th><th style='padding:8px;text-align:left'>Icerik</th>
+            <th style='padding:8px'>Durum</th><th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody id='pkg-tbody'>{pkg_rows or '<tr><td colspan="6" style="padding:12px;color:#aaa;text-align:center">Paket yok</td></tr>'}</tbody>
+        </table>
+        <div style='background:#f5f0f0;padding:12px;border-radius:8px'>
+          <div style='font-weight:600;margin-bottom:8px;font-size:.85rem'>Yeni Paket Ekle</div>
+          <div style='display:flex;gap:6px;flex-wrap:wrap'>
+            <input id='ap-adi' placeholder='Paket adi' style='flex:1;min-width:120px;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:.82rem'>
+            <input id='ap-fiyat' type='number' placeholder='Fiyat' style='width:90px;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:.82rem'>
+            <input id='ap-sure' type='number' placeholder='Sure(dk)' value='60' style='width:90px;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:.82rem'>
+            <input id='ap-icerik' placeholder='Icerik' style='flex:2;min-width:120px;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:.82rem'>
+            <button class='btn' onclick='adminPaketEkle({firm_id})'>Ekle</button>
+          </div>
+        </div>
+      </div>
+      <!-- Calisma Saatleri -->
+      <div class='card'>
+        <h2>&#128336; Calisma Saatleri</h2>
+        <form method='post' action='/admin/firma/{firm_id}/calisma-saatleri'>
+          <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+            <thead><tr style='background:#f5f0f0'>
+              <th style='padding:8px;text-align:left'>Gun</th><th style='padding:8px'>Acilis</th>
+              <th></th><th style='padding:8px'>Kapanis</th><th style='padding:8px'>Durum</th>
+            </tr></thead>
+            <tbody id='wh-tbody'>{wh_rows}</tbody>
+          </table>
+          <button type='submit' class='btn' style='width:100%;margin-top:12px'>Saatleri Kaydet</button>
+        </form>
+      </div>
+      <!-- Son Randevular -->
+      <div class='card'>
+        <h2>&#128197; Son Randevular</h2>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:6px;text-align:left'>Musteri</th><th style='padding:6px;text-align:left'>Tarih</th>
+            <th style='padding:6px;text-align:left'>Paket</th><th style='padding:6px;text-align:left'>Durum</th>
+            <th style='padding:6px'>Islem</th>
+          </tr></thead>
+          <tbody>{apt_rows or '<tr><td colspan="5" style="padding:12px;color:#aaa;text-align:center">Randevu yok</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Paket Duzenle Modal -->
+    <div id='apModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center'>
+      <div style='background:#fff;border-radius:14px;width:92%;max-width:420px;padding:24px'>
+        <h3 style='margin-bottom:14px'>Paketi Duzenle</h3>
+        <input type='hidden' id='ap-edit-id'>
+        <div class='form-group'><label>Paket Adi</label><input type='text' id='ap-edit-adi'></div>
+        <div class='form-group'><label>Fiyat (TL)</label><input type='number' id='ap-edit-fiyat'></div>
+        <div class='form-group'><label>Sure (dk)</label><input type='number' id='ap-edit-sure'></div>
+        <div class='form-group'><label>Icerik</label><input type='text' id='ap-edit-icerik'></div>
+        <div class='form-group'><label>Durum</label><select id='ap-edit-aktif'><option value='1'>Aktif</option><option value='0'>Pasif</option></select></div>
+        <div style='display:flex;gap:8px;margin-top:8px'>
+          <button class='btn' style='flex:1' onclick='adminPaketKaydet()'>Kaydet</button>
+          <button class='btn-outline' style='flex:1' onclick="document.getElementById('apModal').style.display='none'">Vazgec</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    function toggleGunAdmin(gun,kap){{
+      var tr=document.querySelector('input[name="'+gun+'_kapali"]').closest('tr');
+      tr.style.opacity=kap?'0.5':'1';
+      tr.querySelectorAll('select').forEach(function(s){{s.disabled=kap;}});
+    }}
+    function adminDuzenlePaket(id,adi,fiyat,sure,icerik,aktif){{
+      document.getElementById('ap-edit-id').value=id;
+      document.getElementById('ap-edit-adi').value=adi;
+      document.getElementById('ap-edit-fiyat').value=fiyat;
+      document.getElementById('ap-edit-sure').value=sure;
+      document.getElementById('ap-edit-icerik').value=icerik;
+      document.getElementById('ap-edit-aktif').value=aktif;
+      document.getElementById('apModal').style.display='flex';
+    }}
+    function adminPaketKaydet(){{
+      var fd=new FormData();
+      fd.append('paket_id',document.getElementById('ap-edit-id').value);
+      fd.append('paket_adi',document.getElementById('ap-edit-adi').value);
+      fd.append('fiyat',document.getElementById('ap-edit-fiyat').value);
+      fd.append('sure_dk',document.getElementById('ap-edit-sure').value);
+      fd.append('icerik',document.getElementById('ap-edit-icerik').value);
+      fd.append('aktif',document.getElementById('ap-edit-aktif').value);
+      fetch('/admin/paket/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success){{document.getElementById('apModal').style.display='none';location.reload();}}else alert(d.error);}});
+    }}
+    function adminSilPaket(id){{
+      if(!confirm('Paketi silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('paket_id',id);
+      fetch('/admin/paket/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    function adminPaketEkle(firmId){{
+      var fd=new FormData();
+      fd.append('firm_id',firmId);
+      fd.append('paket_adi',document.getElementById('ap-adi').value);
+      fd.append('fiyat',document.getElementById('ap-fiyat').value);
+      fd.append('sure_dk',document.getElementById('ap-sure').value||60);
+      fd.append('icerik',document.getElementById('ap-icerik').value);
+      if(!fd.get('paket_adi')||!fd.get('fiyat')){{alert('Ad ve fiyat zorunlu!');return;}}
+      fetch('/admin/paket/ekle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    function silRandevuD(id){{
+      if(!confirm('Randevuyu silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('appointment_id',id);
+      fetch('/admin/randevu/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Firma Detay</title>" + body)
+
+@app.post("/admin/firma/{firm_id}/calisma-saatleri")
+async def admin_calisma_kaydet(firm_id: int, request: Request, session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    form = await request.form()
+    GUNLER = ['pazartesi','sali','carsamba','persembe','cuma','cumartesi','pazar']
+    conn = get_conn()
+    cur = conn.cursor()
+    vals = {"firm_id": firm_id}
+    for gun in GUNLER:
+        vals[f"{gun}_acilis"] = form.get(f"{gun}_acilis", "09:00")
+        vals[f"{gun}_kapanis"] = form.get(f"{gun}_kapanis", "18:00")
+        vals[f"{gun}_kapali"] = form.get(f"{gun}_kapali") == "1"
+    cur.execute("SELECT id FROM firm_working_hours WHERE firm_id=%s", (firm_id,))
+    if cur.fetchone():
+        set_clause = ", ".join([f"{k}=%s" for k in vals if k != "firm_id"])
+        cur.execute(f"UPDATE firm_working_hours SET {set_clause} WHERE firm_id=%s",
+                   [vals[k] for k in vals if k != "firm_id"] + [firm_id])
+    else:
+        cols = ", ".join(vals.keys())
+        phs = ", ".join(["%s"] * len(vals))
+        cur.execute(f"INSERT INTO firm_working_hours ({cols}) VALUES ({phs})", list(vals.values()))
+    conn.commit()
+    cur.close(); conn.close()
+    return RedirectResponse(f"/admin/firma/{firm_id}/detay", status_code=303)
+
+@app.post("/admin/paket/guncelle")
+async def admin_paket_guncelle(
+    paket_id: int = Form(...),
+    paket_adi: str = Form(...),
+    fiyat: int = Form(...),
+    sure_dk: int = Form(default=60),
+    icerik: str = Form(default=""),
+    aktif: int = Form(default=1),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE firm_packages SET paket_adi=%s, fiyat=%s, sure_dk=%s, icerik=%s, aktif=%s WHERE id=%s",
+               (paket_adi, fiyat, sure_dk, icerik, aktif, paket_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/paket/sil")
+async def admin_paket_sil(paket_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM firm_packages WHERE id=%s", (paket_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/paket/ekle")
+async def admin_paket_ekle(
+    firm_id: int = Form(...),
+    paket_adi: str = Form(...),
+    fiyat: int = Form(...),
+    sure_dk: int = Form(default=60),
+    icerik: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, sure_dk, icerik) VALUES (%s,%s,%s,%s,%s)",
+               (firm_id, paket_adi, fiyat, sure_dk, icerik))
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
