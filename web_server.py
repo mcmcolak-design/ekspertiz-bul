@@ -373,7 +373,7 @@ function applyFilters(){
   var il=document.getElementById('ilSelect').value;
   var ilce=document.getElementById('ilceSelect').value;
   filtered=ALL_FIRMS.filter(function(f){
-    var matchQ=!q||(f.name&&f.name.toLowerCase().includes(q))||(f.address&&f.address.toLowerCase().includes(q));
+    var matchQ=!q||(f.name&&f.name.toLowerCase().includes(q));
     var matchIl=!il||f.city===il;
     var matchIlce=!ilce||(f.address&&f.address.includes(ilce));
     var matchFiyat=!onlyFiyatli||(PRICES[f.id]&&PRICES[f.id].length>0);
