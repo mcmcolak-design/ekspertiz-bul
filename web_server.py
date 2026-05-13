@@ -1602,7 +1602,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
             onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">&#9989; Onaylandi - musteri tamamlayacak</span>'
         else:
             onay_btns = ""
-        iletisim_btn = f'<button class="btn-outline" style="font-size:.72rem;padding:4px 8px" onclick="firmaIletisim({rid})">&#128222; Musteri</button> <a href="/randevu/{rid}/mesajlar" class="btn-outline" style="font-size:.72rem;padding:4px 8px">&#128172; Mesaj</a>'
+        iletisim_btn = f'<a href="/randevu/{rid}/mesajlar" class="btn-outline" style="font-size:.72rem;padding:4px 8px">&#128172; Mesaj</a>'
         saat_btn = ""
         iptal_btn = ""
         if r["durum"] not in ["tamamlandi","iptal"]:
