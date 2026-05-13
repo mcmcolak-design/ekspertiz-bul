@@ -1878,7 +1878,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
       </div>
     </div>
     </body></html>"""
-pp.post("/scrape")
+@app.post("/scrape")
 async def trigger_scrape():
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
