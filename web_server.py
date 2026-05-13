@@ -1681,6 +1681,8 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
 
     durum_badge = '<span style="background:#dc3545;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">KAPALI</span>' if firm.get('durum')=='pasif' else '<span style="background:#28a745;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:4px;margin-left:6px">ACIK</span>'
     durum_notu_html = f'<div style="font-size:.78rem;color:#dc3545;margin-top:2px">&#128226; {firm.get("durum_notu","")}</div>' if firm.get('durum_notu') else ''
+    def _make_popup(): return ('<div id="mpop" style="display:none;position:fixed;bottom:20px;right:20px;z-index:3000;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.3);border:2px solid #e53535"><div style="background:#1a0000;color:#fff;padding:10px 14px;border-radius:12px 12px 0 0"><b style="font-size:.85rem">Yeni Mesaj</b></div><div id="mpopList" style="padding:10px"></div></div>')
+    firma_mesaj_popup = _make_popup()
     return f"""<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Firma Paneli - EkspertizBul</title>{_base_style()}
@@ -1986,7 +1988,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
       </div>
       <div id="mesajPopupList" style="padding:12px"></div>
     </div>
-    
+    {firma_mesaj_popup}
     </body></html>"""
 @app.post("/scrape")
 async def trigger_scrape():
