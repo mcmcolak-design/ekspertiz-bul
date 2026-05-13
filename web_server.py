@@ -2733,7 +2733,8 @@ def admin_panel(session: str = Cookie(default=None)):
         <a href='/admin/kullanicilar' class='btn' style='font-size:.85rem'>&#128100; Kullanicilar</a>
         <a href='/admin/firmalar' class='btn' style='font-size:.85rem'>&#127970; Firmalar</a>
         <a href='/admin/randevular' class='btn' style='font-size:.85rem'>&#128197; Randevular</a>
-        <a href='/admin/mesajlar-tum' class='btn' style='font-size:.85rem'>&#128172; Mesajlar</a>
+        <a href='/admin/mesajlar-tum' class='btn' style='font-size:.85rem'>&#128172; Randevu Mesajlari</a>
+        <a href='/admin/destek-mesajlari' class='btn' style='font-size:.85rem'>&#128226; Destek Mesajlari</a>
       </div>
       <div style='display:none'>
       </div>
@@ -3806,7 +3807,8 @@ def admin_firma_detay(firm_id: int, session: str = Cookie(default=None)):
     # Randevu listesi
     apt_rows = ""
     for a in randevular:
-        apt_rows += f"<tr><td style='padding:6px'>{a['ad_soyad']}</td><td style='padding:6px'>{a['tarih']} {a['saat']}</td><td style='padding:6px'>{a['paket'] or '-'}</td><td style='padding:6px'><span class='badge badge-{a['durum']}'>{a['durum'].title()}</span></td><td style='padding:6px'><button class='btn-red' style='font-size:.7rem;padding:2px 6px' onclick='silRandevuD({a['id']})'>Sil</button></td></tr>"
+        durum_opts = "".join([f"<option value='{d}' {'selected' if d==a['durum'] else ''}>{d.title()}</option>" for d in ['beklemede','onaylandi','tamamlandi','iptal','reddedildi']])
+        apt_rows += f"<tr><td style='padding:6px'>{a['ad_soyad']}</td><td style='padding:6px'>{a['tarih']} {a['saat']}</td><td style='padding:6px'>{a['paket'] or '-'}</td><td style='padding:6px'><select onchange='durumGuncelle({a['id']},this.value)' style='font-size:.72rem;padding:3px;border:1px solid #ddd;border-radius:6px'>{durum_opts}</select></td><td style='padding:6px'><button class='btn-red' style='font-size:.7rem;padding:2px 6px' onclick='silRandevuD({a['id']})'>Sil</button></td></tr>"
 
     body = _base_style() + "<body>" + _topbar(firm['unvan'], "/admin/firmalar", "Firmalar")
     body += f"""<div class='wrap'>
@@ -3918,6 +3920,11 @@ def admin_firma_detay(firm_id: int, session: str = Cookie(default=None)):
       fetch('/admin/paket/ekle',{{method:'POST',body:fd}})
         .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
     }}
+    function durumGuncelle(id, durum){{
+      var fd=new FormData();fd.append('appointment_id',id);fd.append('durum',durum);
+      fetch('/admin/randevu/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
     function silRandevuD(id){{
       if(!confirm('Randevuyu silmek istediginize emin misiniz?'))return;
       var fd=new FormData();fd.append('appointment_id',id);
@@ -4003,6 +4010,76 @@ async def admin_paket_ekle(
     cur = conn.cursor()
     cur.execute("INSERT INTO firm_packages (firm_id, paket_adi, fiyat, sure_dk, icerik) VALUES (%s,%s,%s,%s,%s)",
                (firm_id, paket_adi, fiyat, sure_dk, icerik))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+
+@app.get("/admin/destek-mesajlari", response_class=HTMLResponse)
+def admin_destek_mesajlari(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admin_messages ORDER BY created_at DESC")
+    tickets = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for t in tickets:
+        badge = "badge-beklemede" if not t["cevaplandi"] else "badge-tamamlandi"
+        rows += f"""<tr>
+          <td style="padding:8px">{t['id']}</td>
+          <td style="padding:8px">{t['sender_name']}<br><small style="color:#888">{t['sender_type']}</small></td>
+          <td style="padding:8px">{t['konu']}</td>
+          <td style="padding:8px">{t['mesaj'][:60]}{'...' if len(t['mesaj'])>60 else ''}</td>
+          <td style="padding:8px"><span class="badge {badge}">{'Cevaplandi' if t['cevaplandi'] else 'Bekliyor'}</span></td>
+          <td style="padding:8px;font-size:.75rem">{str(t['created_at'])[:16]}</td>
+          <td style="padding:8px;white-space:nowrap">
+            <a href="/admin/mesaj/{t['id']}" class="btn-outline" style="font-size:.72rem;padding:3px 7px">Goruntule</a>
+            <button class="btn-red" style="font-size:.72rem;padding:3px 7px" onclick="silTicket({t['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    body = _base_style() + "<body>" + _topbar("Destek Mesajlari", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap'>
+      <div class='card'>
+        <h2>&#128226; Destek Mesajlari ({len(tickets)})</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px'>ID</th>
+            <th style='padding:8px;text-align:left'>Gonderen</th>
+            <th style='padding:8px;text-align:left'>Konu</th>
+            <th style='padding:8px;text-align:left'>Mesaj</th>
+            <th style='padding:8px'>Durum</th>
+            <th style='padding:8px;text-align:left'>Tarih</th>
+            <th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody>{rows or '<tr><td colspan="7" style="padding:16px;text-align:center;color:#aaa">Mesaj yok</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <script>
+    function silTicket(id){{
+      if(!confirm('Bu mesaji ve tum konusmayi silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('ticket_id',id);
+      fetch('/admin/destek/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Destek Mesajlari</title>" + body)
+
+@app.post("/admin/destek/sil")
+async def admin_destek_sil(ticket_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM admin_chat WHERE ticket_id=%s", (ticket_id,))
+    cur.execute("DELETE FROM admin_messages WHERE id=%s", (ticket_id,))
     conn.commit()
     cur.close(); conn.close()
     return JSONResponse({"success": True})
