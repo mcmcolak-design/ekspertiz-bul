@@ -1102,6 +1102,8 @@ async def randevu_olustur(
     firm = cur.fetchone()
     if not firm:
         return JSONResponse({"error": "Firma bulunamadi"}, status_code=404)
+    if not paket or not paket.strip():
+        return JSONResponse({"error": "Lutfen bir paket secin"})
     # Firma pasif mi?
     if firm.get("durum") == "pasif":
         notu = firm.get("durum_notu") or "Firma simdilik randevu almiyor."
@@ -1983,7 +1985,7 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
     yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
     saat_opts = "".join(["<option value='"+str(h).zfill(2)+":00'>"+str(h).zfill(2)+":00</option>" for h in range(8,19)])
-    pkg_opts = "<option value=''>Paket secin (opsiyonel)</option>"
+    pkg_opts = "<option value=''>-- Paket secin (zorunlu) --</option>"
     for p in paketler:
         pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
     fid_str = str(firm_db_id)
@@ -2000,7 +2002,7 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     body += "<div class='form-group'><label>Notlar</label><textarea id='notlar' rows='2'></textarea></div>"
     body += "<button class='btn' style='width:100%' onclick='submitR()'>Randevu Gonder</button>"
     body += "</div></div>"
-    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
+    body += "<script>function submitR(){var fd=new FormData();fd.append('firm_id','" + fid_str + "');fd.append('tarih',document.getElementById('tarih').value);fd.append('saat',document.getElementById('saat').value);fd.append('arac_marka',document.getElementById('marka').value);fd.append('arac_model',document.getElementById('model').value);fd.append('arac_yil',document.getElementById('yil').value);fd.append('paket',document.getElementById('paket').value);fd.append('notlar',document.getElementById('notlar').value);if(!fd.get('tarih')){alert('Lutfen tarih secin!');return;}if(!fd.get('paket')){alert('Lutfen bir paket secin!');return;}fetch('/randevu/olustur',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msg').innerHTML='<div class=\"alert alert-success\">Randevunuz gonderildi!</div>';setTimeout(()=>window.location='/kullanici/panel',2000);}else{document.getElementById('msg').innerHTML='<div class=\"alert alert-error\">'+d.error+'</div>';}});}</script>"
     body += "</body></html>"
     return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Randevu Al</title>" + body)
 
