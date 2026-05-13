@@ -328,24 +328,29 @@ document.getElementById('firmCount').textContent=ALL_FIRMS.length.toLocaleString
 
 // IL/ILCE dropdown olustur
 (function buildDropdowns(){
-  var ilMap={};
-  ALL_FIRMS.forEach(function(f){
-    var il=(f.city||'').trim();
-    if(!il)return;
-    if(!ilMap[il])ilMap[il]=new Set();
-    if(f.address){
-      var parts=f.address.split(',');
-      // Son anlamli parcayi ilce say
-      for(var i=parts.length-1;i>=0;i--){
-        var p=parts[i].trim();
-        if(p.length>2&&!/^[0-9]/.test(p)&&p!==il){ilMap[il].add(p);break;}
-      }
-    }
-  });
-  var iller=Object.keys(ilMap).sort(function(a,b){return a.localeCompare(b,'tr');});
+  // Sabit Turkiye il listesi - firmalar hangi ilde olursa olsun tam liste
+  var TR_ILLER = ["Adana","Adiyaman","Afyonkarahisar","Agri","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydin","Balikesir","Bartin","Batman","Bayburt","Bilecik","Bingol","Bitlis","Bolu","Burdur","Bursa","Canakkale","Cankiri","Corum","Denizli","Diyarbakir","Duzce","Edirne","Elazig","Erzincan","Erzurum","Eskisehir","Gaziantep","Giresun","Gumushane","Hakkari","Hatay","Igdir","Isparta","Istanbul","Izmir","Kahramanmaras","Karabuk","Karaman","Kars","Kastamonu","Kayseri","Kilis","Kirikkale","Kirklareli","Kirsehir","Kocaeli","Konya","Kutahya","Malatya","Manisa","Mardin","Mersin","Mugla","Mus","Nevsehir","Nigde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Sanliurfa","Siirt","Sinop","Sirnak","Sivas","Tekirdag","Tokat","Trabzon","Tunceli","Usak","Van","Yalova","Yozgat","Zonguldak"];
+  var TR_ILCELER = {
+    "Istanbul":["Adalar","Arnavutkoy","Atasehir","Avcilar","Bagcilar","Bahcelievler","Bakirkoy","Basaksehir","Bayrampasa","Besiktas","Beykoz","Beylikduzu","Beyoglu","Buyukcekmece","Catalca","Cekmekoy","Esenler","Esenyurt","Eyupsultan","Fatih","Gaziosmanpasa","Gungoren","Kadikoy","Kagithane","Kartal","Kucukcekmece","Maltepe","Pendik","Sancaktepe","Sariyer","Silivri","Sultanbeyli","Sultangazi","Sile","Sisli","Tuzla","Umraniye","Uskudar","Zeytinburnu"],
+    "Ankara":["Akyurt","Altindag","Ayash","Bala","Beypazari","Camlidere","Cankaya","Cayyolu","Cubuk","Elmadag","Etimesgut","Evren","Golbasi","Gudul","Haymana","Kahramankazan","Kalecik","Kecioren","Kizilcahamam","Mamak","Nallihan","Polatli","Pursaklar","Sincan","Sereflikochisar","Yenimahalle"],
+    "Izmir":["Aliaga","Balcova","Bayindir","Bayrakli","Bergama","Beydag","Bornova","Buca","Cesme","Cigli","Dikili","Foca","Gaziemir","Guzelbahce","Karabaglar","Karaburun","Karsiyaka","Kemalpasa","Kinik","Kiraz","Kucukdaglik","Menderes","Menemen","Narlidere","Odemis","Selcuk","Seferihisar","Torbali","Tire","Urla"],
+    "Bursa":["Buyukorhan","Gemlik","Gursu","Harmancik","Inegol","Iznik","Karacabey","Keles","Kestel","Mudanya","Mustafakemalpasa","Nilufer","Orhaneli","Orhangazi","Osmangazi","Yenisehir","Yildirim"],
+    "Antalya":["Akseki","Aksu","Alanya","Demre","Dosemealti","Elmalı","Finike","Gazipaşa","Gündoğmuş","İbradı","Kaş","Kemer","Kepez","Konyaaltı","Korkuteli","Kumluca","Manavgat","Muratpaşa","Serik"],
+    "Adana":["Aladag","Ceyhan","Cukurova","Feke","Imamoglu","Karaisali","Karatas","Kozan","Pozanti","Saimbeyii","Sariçam","Seyhan","Tufanbeyli","Yumurtalik","Yuregir"],
+    "Konya":["Ahirli","Akcesehir","Akoren","Akşehir","Altinekin","Beysehir","Bozkir","Cihanbeyli","Cumra","Derbent","Derebucak","Doganhisar","Emirgazi","Eregli","Guneysinir","Hadim","Halkapinar","Huyuk","Ilgin","Kadinhani","Karapinar","Kulu","Meram","Selcuklu","Seydisehir","Taskent","Tuzlukcu","Yalihuyuk","Yunak"],
+    "Kahramanmaras":["Afsin","Andirin","Caglayancerit","Dulkadirli","Elbistan","Ekinozu","Goksun","Nurhak","Onikisubat","Pazarcik","Turkoglu"],
+    "Kayseri":["Akkisla","Bünyan","Develi","Felahiye","Hacılar","İncesu","Kocasinan","Melikgazi","Özvatan","Pınarbaşı","Sarıoğlan","Sarız","Talas","Tomarza","Yahyalı","Yeşilhisar"],
+    "Gaziantep":["Araban","İslahiye","Karkamış","Nurdağı","Nizip","Oğuzeli","Şahinbey","Şehitkamil","Yavuzeli"],
+    "Mersin":["Akdeniz","Anamur","Aydıncık","Bozyazı","Çamlıyayla","Erdemli","Gülnar","Mezitli","Mut","Silifke","Tarsus","Toroslar","Yenişehir"],
+    "Kocaeli":["Basiskele","Cayirova","Darica","Derince","Dilovasi","Gebze","Golcuk","İzmit","Kandira","Karamursel","Kartepe","Korfez"],
+    "Sakarya":["Adapazari","Akyazi","Arifiye","Erenler","Ferizli","Geyve","Hendek","Karapürçek","Karasu","Kaynarca","Kocaali","Mithatpaşa","Pamukova","Sapanca","Serdivan","Sogutlu","Tarakli"],
+    "Diger":[]
+  };
   var ilSel=document.getElementById('ilSelect');
-  iller.forEach(function(il){var o=document.createElement('option');o.value=il;o.textContent=il;ilSel.appendChild(o);});
-  window._ilMap=ilMap;
+  TR_ILLER.sort(function(a,b){return a.localeCompare(b,'tr');}).forEach(function(il){
+    var o=document.createElement('option');o.value=il;o.textContent=il;ilSel.appendChild(o);
+  });
+  window._ilMap=TR_ILCELER;
 })();
 
 function onIlChange(){
@@ -353,7 +358,8 @@ function onIlChange(){
   var ilceSel=document.getElementById('ilceSelect');
   ilceSel.innerHTML='<option value="">Tum Ilceler</option>';
   if(il&&window._ilMap[il]){
-    Array.from(window._ilMap[il]).sort(function(a,b){return a.localeCompare(b,'tr');}).forEach(function(ilce){
+    var ilceler=window._ilMap[il];
+    (Array.isArray(ilceler)?ilceler:Array.from(ilceler)).sort(function(a,b){return a.localeCompare(b,'tr');}).forEach(function(ilce){
       var o=document.createElement('option');o.value=ilce;o.textContent=ilce;ilceSel.appendChild(o);
     });
   }
@@ -376,7 +382,7 @@ function applyFilters(){
   filtered=ALL_FIRMS.filter(function(f){
     var matchQ=!q||(f.name&&trLower(f.name).includes(q));
     var matchIl=!il||f.city===il;
-    var matchIlce=!ilce||(f.address&&f.address.includes(ilce));
+    var matchIlce=!ilce||(f.address&&f.address.toLowerCase().includes(ilce.toLowerCase()))||(f.city&&f.city.toLowerCase()===ilce.toLowerCase());
     var matchFiyat=!onlyFiyatli||(PRICES[f.id]&&PRICES[f.id].length>0);
     return matchQ&&matchIl&&matchIlce&&matchFiyat;
   });
