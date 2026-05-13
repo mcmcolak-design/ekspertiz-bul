@@ -1122,8 +1122,13 @@ async def randevu_olustur(
             acilis = wh[f"{gun_adi}_acilis"]
             kapanis = wh[f"{gun_adi}_kapanis"]
             if acilis and kapanis and saat:
+                # HH:MM formatinda string karsilastirma (30dk destekli)
                 if not (acilis <= saat <= kapanis):
                     return JSONResponse({"error": f"Secilen saat calisma saatleri disinda. Calisma saatleri: {acilis} - {kapanis}"})
+                # Gecerli aralik kontrolu (30 dakika)
+                saat_parts = saat.split(":")
+                if len(saat_parts) == 2 and saat_parts[1] not in ["00", "30"]:
+                    return JSONResponse({"error": "Randevu saati yalnizca saat basi (00) veya 30. dakikada olabilir."})
     except Exception as e:
         print(f"Calisma saati kontrol hatasi: {e}")
     cur.execute(
@@ -1984,7 +1989,7 @@ def randevu_page(firm_id: str, session: str = Cookie(default=None)):
     markalar = ["","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mazda","Mercedes-Benz","Nissan","Opel","Peugeot","Renault","Skoda","Toyota","Volkswagen","Diger"]
     marka_opts = "".join(["<option value='"+m+"'>"+m+"</option>" for m in markalar])
     yil_opts = "".join(["<option value='"+str(y)+"'>"+str(y)+"</option>" for y in range(2025,1989,-1)])
-    saat_opts = "".join(["<option value='"+str(h).zfill(2)+":00'>"+str(h).zfill(2)+":00</option>" for h in range(8,19)])
+    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,30]])
     pkg_opts = "<option value=''>-- Paket secin (zorunlu) --</option>"
     for p in paketler:
         pkg_opts += "<option value='"+str(p["paket_adi"])+"'>"+str(p["paket_adi"])+" - "+str(p["fiyat"])+" TL</option>"
@@ -2334,7 +2339,7 @@ def calisma_saatleri_page(session: str = Cookie(default=None)):
     durum = firm["durum"] if firm else "aktif"
     durum_notu = firm["durum_notu"] if firm else ""
 
-    saat_opts = "".join([f"<option value='{h:02d}:00'>{h:02d}:00</option>" for h in range(6, 23)])
+    saat_opts = "".join([f"<option value='{h:02d}:{m:02d}'>{h:02d}:{m:02d}</option>" for h in range(24) for m in [0,30]])
 
     gun_rows = ""
     for i, gun in enumerate(GUNLER):
