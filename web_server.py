@@ -2729,6 +2729,12 @@ def admin_panel(session: str = Cookie(default=None)):
           <div style='font-size:.8rem;color:#888'>Okunmamis Mesaj</div>
         </div>
       </div>
+      <div style='display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap'>
+        <a href='/admin/kullanicilar' class='btn' style='font-size:.85rem'>&#128100; Kullanicilari Yonet</a>
+        <a href='/admin/firmalar' class='btn' style='font-size:.85rem'>&#127970; Firmalari Yonet</a>
+      </div>
+      <div style='display:none'>
+      </div>
       <div class='card'>
         <h2>&#128172; Mesajlar</h2>
         <div style='overflow-x:auto'>
@@ -3271,6 +3277,274 @@ def musait_saatler(firm_db_id: int, tarih: str, paket_id: int = 0):
         t += datetime.timedelta(minutes=15)
     return JSONResponse({"slots": slots, "sure_dk": sure_dk})
 
+
+
+# ============================================================
+# ADMIN - KULLANICI VE FIRMA YONETIMI
+# ============================================================
+
+@app.get("/admin/kullanicilar", response_class=HTMLResponse)
+def admin_kullanicilar(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users ORDER BY created_at DESC")
+    users = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for u in users:
+        rows += f"""<tr>
+          <td style="padding:8px">{u['id']}</td>
+          <td style="padding:8px">{u['ad_soyad']}</td>
+          <td style="padding:8px">{u['email']}</td>
+          <td style="padding:8px">{u['telefon'] or '-'}</td>
+          <td style="padding:8px">{str(u['created_at'])[:10]}</td>
+          <td style="padding:8px">
+            <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenleKullanici({u['id']},'{u['ad_soyad']}','{u['email']}','{u['telefon'] or ''}')">Duzenle</button>
+            <button class="btn-red" style="font-size:.75rem;padding:4px 8px" onclick="silKullanici({u['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    body = _base_style() + "<body>" + _topbar("Kullanicilar", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap'>
+      <div class='card'>
+        <h2>&#128100; Kullanicilar ({len(users)})</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px'>ID</th>
+            <th style='padding:8px;text-align:left'>Ad Soyad</th>
+            <th style='padding:8px;text-align:left'>Email</th>
+            <th style='padding:8px;text-align:left'>Telefon</th>
+            <th style='padding:8px;text-align:left'>Kayit</th>
+            <th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody>{rows}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <!-- Duzenle Modal -->
+    <div id="editUserModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;padding:24px">
+        <h3 style="margin-bottom:16px">Kullaniciyi Duzenle</h3>
+        <input type="hidden" id="edit-user-id">
+        <div class='form-group'><label>Ad Soyad</label><input type="text" id="edit-user-ad"></div>
+        <div class='form-group'><label>Email</label><input type="email" id="edit-user-email"></div>
+        <div class='form-group'><label>Telefon</label><input type="tel" id="edit-user-tel"></div>
+        <div class='form-group'><label>Yeni Sifre (bos birakin degistirmek istemiyorsaniz)</label><input type="password" id="edit-user-sifre"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" style="flex:1" onclick="kaydetKullanici()">Kaydet</button>
+          <button class="btn-outline" style="flex:1" onclick="document.getElementById('editUserModal').style.display='none'">Vazgec</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    function duzenleKullanici(id,ad,email,tel){{
+      document.getElementById('edit-user-id').value=id;
+      document.getElementById('edit-user-ad').value=ad;
+      document.getElementById('edit-user-email').value=email;
+      document.getElementById('edit-user-tel').value=tel;
+      document.getElementById('edit-user-sifre').value='';
+      document.getElementById('editUserModal').style.display='flex';
+    }}
+    function kaydetKullanici(){{
+      var fd=new FormData();
+      fd.append('user_id',document.getElementById('edit-user-id').value);
+      fd.append('ad_soyad',document.getElementById('edit-user-ad').value);
+      fd.append('email',document.getElementById('edit-user-email').value);
+      fd.append('telefon',document.getElementById('edit-user-tel').value);
+      fd.append('sifre',document.getElementById('edit-user-sifre').value);
+      fetch('/admin/kullanici/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    function silKullanici(id){{
+      if(!confirm('Bu kullaniciyi silmek istediginize emin misiniz?'))return;
+      var fd=new FormData();fd.append('user_id',id);
+      fetch('/admin/kullanici/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Kullanicilar</title>" + body)
+
+@app.post("/admin/kullanici/guncelle")
+async def admin_kullanici_guncelle(
+    user_id: int = Form(...),
+    ad_soyad: str = Form(...),
+    email: str = Form(...),
+    telefon: str = Form(default=""),
+    sifre: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if sifre:
+        cur.execute("UPDATE users SET ad_soyad=%s, email=%s, telefon=%s, sifre_hash=%s WHERE id=%s",
+                   (ad_soyad, email, telefon, hash_password(sifre), user_id))
+    else:
+        cur.execute("UPDATE users SET ad_soyad=%s, email=%s, telefon=%s WHERE id=%s",
+                   (ad_soyad, email, telefon, user_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/kullanici/sil")
+async def admin_kullanici_sil(user_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM appointments WHERE user_id=%s", (user_id,))
+    cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.get("/admin/firmalar", response_class=HTMLResponse)
+def admin_firmalar(session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return RedirectResponse("/admin/giris", status_code=303)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM firm_accounts ORDER BY created_at DESC")
+    firms = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for f in firms:
+        durum_badge = '<span style="color:#28a745">Aktif</span>' if f.get('durum','aktif')=='aktif' else '<span style="color:#dc3545">Pasif</span>'
+        rows += f"""<tr>
+          <td style="padding:8px">{f['id']}</td>
+          <td style="padding:8px"><b>{f['unvan']}</b></td>
+          <td style="padding:8px">{f['il'] or '-'} / {f['ilce'] or '-'}</td>
+          <td style="padding:8px">{f['telefon']}</td>
+          <td style="padding:8px">{f['email']}</td>
+          <td style="padding:8px">{durum_badge}</td>
+          <td style="padding:8px">
+            <button class="btn-outline" style="font-size:.75rem;padding:4px 8px" onclick="duzenle({f['id']},'{f['unvan']}','{f['il'] or ''}','{f['ilce'] or ''}','{f['telefon']}','{f['email']}','{f.get('durum','aktif')}')">Duzenle</button>
+            <button class="btn-red" style="font-size:.75rem;padding:4px 8px" onclick="silFirma({f['id']})">Sil</button>
+          </td>
+        </tr>"""
+
+    body = _base_style() + "<body>" + _topbar("Firmalar", "/admin/panel", "Admin Panel")
+    body += f"""<div class='wrap'>
+      <div class='card'>
+        <h2>&#127970; Firmalar ({len(firms)})</h2>
+        <div style='overflow-x:auto'>
+        <table style='width:100%;border-collapse:collapse;font-size:.82rem'>
+          <thead><tr style='background:#f5f0f0'>
+            <th style='padding:8px'>ID</th>
+            <th style='padding:8px;text-align:left'>Unvan</th>
+            <th style='padding:8px;text-align:left'>Il/Ilce</th>
+            <th style='padding:8px;text-align:left'>Tel</th>
+            <th style='padding:8px;text-align:left'>Email</th>
+            <th style='padding:8px;text-align:left'>Durum</th>
+            <th style='padding:8px'>Islem</th>
+          </tr></thead>
+          <tbody>{rows}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <div id="editFirmaModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;width:92%;max-width:480px;padding:24px;max-height:90vh;overflow-y:auto">
+        <h3 style="margin-bottom:16px">Firmay Duzenle</h3>
+        <input type="hidden" id="edit-f-id">
+        <div class='form-group'><label>Unvan</label><input type="text" id="edit-f-unvan"></div>
+        <div class='form-group'><label>Il</label><input type="text" id="edit-f-il"></div>
+        <div class='form-group'><label>Ilce</label><input type="text" id="edit-f-ilce"></div>
+        <div class='form-group'><label>Telefon</label><input type="tel" id="edit-f-tel"></div>
+        <div class='form-group'><label>Email</label><input type="email" id="edit-f-email"></div>
+        <div class='form-group'><label>Durum</label>
+          <select id="edit-f-durum">
+            <option value="aktif">Aktif</option>
+            <option value="pasif">Pasif</option>
+          </select>
+        </div>
+        <div class='form-group'><label>Yeni Sifre</label><input type="password" id="edit-f-sifre" placeholder="Bos birakin degistirmemek icin"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" style="flex:1" onclick="kaydetFirma()">Kaydet</button>
+          <button class="btn-outline" style="flex:1" onclick="document.getElementById('editFirmaModal').style.display='none'">Vazgec</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    function duzenle(id,unvan,il,ilce,tel,email,durum){{
+      document.getElementById('edit-f-id').value=id;
+      document.getElementById('edit-f-unvan').value=unvan;
+      document.getElementById('edit-f-il').value=il;
+      document.getElementById('edit-f-ilce').value=ilce;
+      document.getElementById('edit-f-tel').value=tel;
+      document.getElementById('edit-f-email').value=email;
+      document.getElementById('edit-f-durum').value=durum;
+      document.getElementById('edit-f-sifre').value='';
+      document.getElementById('editFirmaModal').style.display='flex';
+    }}
+    function kaydetFirma(){{
+      var fd=new FormData();
+      ['id','unvan','il','ilce','tel','email','durum','sifre'].forEach(function(k){{
+        fd.append(k=='id'?'firm_id':k=='tel'?'telefon':k=='sifre'?'sifre':k,
+                  document.getElementById('edit-f-'+k).value);
+      }});
+      fetch('/admin/firma/guncelle',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    function silFirma(id){{
+      if(!confirm('Bu firmay silmek istediginize emin misiniz? Tum randevular da silinecek!'))return;
+      var fd=new FormData();fd.append('firm_id',id);
+      fetch('/admin/firma/sil',{{method:'POST',body:fd}})
+        .then(r=>r.json()).then(d=>{{if(d.success)location.reload();else alert(d.error);}});
+    }}
+    </script></body></html>"""
+    return HTMLResponse("<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Firmalar</title>" + body)
+
+@app.post("/admin/firma/guncelle")
+async def admin_firma_guncelle(
+    firm_id: int = Form(...),
+    unvan: str = Form(...),
+    il: str = Form(default=""),
+    ilce: str = Form(default=""),
+    telefon: str = Form(...),
+    email: str = Form(...),
+    durum: str = Form(default="aktif"),
+    sifre: str = Form(default=""),
+    session: str = Cookie(default=None)
+):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    if sifre:
+        cur.execute("UPDATE firm_accounts SET unvan=%s, il=%s, ilce=%s, telefon=%s, email=%s, durum=%s, sifre_hash=%s WHERE id=%s",
+                   (unvan, il, ilce, telefon, email, durum, hash_password(sifre), firm_id))
+    else:
+        cur.execute("UPDATE firm_accounts SET unvan=%s, il=%s, ilce=%s, telefon=%s, email=%s, durum=%s WHERE id=%s",
+                   (unvan, il, ilce, telefon, email, durum, firm_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/firma/sil")
+async def admin_firma_sil(firm_id: int = Form(...), session: str = Cookie(default=None)):
+    s = get_session(session)
+    if not s or s["role"] != "admin":
+        return JSONResponse({"error": "Yetkisiz"}, status_code=401)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM appointments WHERE firm_id=%s", (firm_id,))
+    cur.execute("DELETE FROM firm_packages WHERE firm_id=%s", (firm_id,))
+    cur.execute("DELETE FROM firm_working_hours WHERE firm_id=%s", (firm_id,))
+    cur.execute("DELETE FROM firm_accounts WHERE id=%s", (firm_id,))
+    conn.commit()
+    cur.close(); conn.close()
+    return JSONResponse({"success": True})
 
 if __name__ == "__main__":
     import uvicorn
