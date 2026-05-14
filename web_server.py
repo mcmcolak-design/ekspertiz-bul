@@ -1908,8 +1908,8 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         html+='<div style="font-weight:700;font-size:.95rem;margin-bottom:4px">'+r.ad_soyad+'</div>';
         html+='<div style="font-size:.82rem;color:#666;margin-bottom:8px">'+r.tarih+' '+r.saat+' | '+r.arac+' | '+(r.paket||'-')+'</div>';
         html+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
-        html+='<button class="btn-green" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'onaylandi\',this)">&#9989; Onayla</button>';
-        html+='<button class="btn-red" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'reddedildi\',this)">&#10060; Reddet</button>';
+html+='<button class="btn-green" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'onaylandi\',this)">&#9989; Onayla</button>';
+        html+='<button class="btn-red" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'reddedildi\',this)">&#10060; Reddet</button>';        html+='<button class="btn-red" style="font-size:.8rem;padding:6px 12px" onclick="aptIslem('+r.id+',\'reddedildi\',this)">&#10060; Reddet</button>';
         html+='<button class="btn-outline" style="font-size:.8rem;padding:6px 12px" onclick="saatFormAc('+r.id+')">&#128336; Saat Degistir</button>';
         html+='</div>';
         html+='<div id="sf-'+r.id+'" style="display:none;margin-top:8px">';
