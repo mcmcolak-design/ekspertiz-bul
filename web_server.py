@@ -578,6 +578,9 @@ var CMP_DATA = {
   }
 };
 
+var DB_CMP = DB_CMP_PLACEHOLDER;
+// DB firmalarini CMP_DATA ile birlestir
+Object.keys(DB_CMP).forEach(function(k){ if(!CMP_DATA[k]) CMP_DATA[k] = DB_CMP[k]; });
 var cmpSelected = []; // [{firm, pkg}]
 
 function openCompare(){
@@ -785,7 +788,31 @@ def index(session: str = Cookie(default=None)):
     prices = get_prices()
     firms_json = json.dumps(firms, ensure_ascii=False)
     prices_json = json.dumps(prices, ensure_ascii=False)
-    html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json)
+    # DB firmalarini CMP_DATA'ya ekle
+    try:
+        pg = get_conn()
+        cur = pg.cursor()
+        cur.execute("""
+            SELECT fa.id, fa.unvan, fp.paket_adi, fp.fiyat, fp.icerik
+            FROM firm_accounts fa
+            JOIN firm_packages fp ON fp.firm_id = fa.id
+            WHERE fa.active=1 AND fp.aktif=1
+            ORDER BY fa.id, fp.fiyat
+        """)
+        db_rows = cur.fetchall()
+        cur.close(); pg.close()
+        db_cmp = {}
+        for row in db_rows:
+            fname = row['unvan']
+            if fname not in db_cmp:
+                db_cmp[fname] = {"website": "", "phone": "", "packages": []}
+            features = [x.strip() for x in (row['icerik'] or "").split(",") if x.strip()]
+            db_cmp[fname]["packages"].append({"name": row['paket_adi'], "price": row['fiyat'], "features": features})
+        db_cmp_json = json.dumps(db_cmp, ensure_ascii=False)
+    except Exception as e:
+        print(f"CMP DB error: {e}")
+        db_cmp_json = "{}"
+    html = PAGE.replace("FIRMS_PLACEHOLDER", firms_json).replace("PRICES_PLACEHOLDER", prices_json).replace("DB_CMP_PLACEHOLDER", db_cmp_json)
     # Session durumuna gore header linklerini guncelle
     s = get_session(session)
     if s and s["role"] == "user":
