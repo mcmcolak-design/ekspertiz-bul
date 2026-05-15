@@ -1321,45 +1321,50 @@ def _base_style():
     return """
     <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Inter,sans-serif;background:#f5f0f0;color:#1a0000;min-height:100vh}
-    .topbar{background:linear-gradient(135deg,#1a0000,#3d0000);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
-    .topbar a{color:#fff;text-decoration:none;font-size:.85rem}
-    .topbar h1{font-size:1.1rem;font-weight:800}
-    .topbar h1 em{color:#e53535;font-style:normal}
-    .back{display:inline-block;margin:14px 16px;background:#fff;border:1px solid #ddd;padding:7px 14px;border-radius:8px;text-decoration:none;color:#555;font-size:.82rem}
-    .back:hover{border-color:#e53535;color:#e53535}
+    body{font-family:Inter,sans-serif;background:#f4f4f4;color:#1a1a1a;min-height:100vh;font-size:14px}
+    .topbar{background:#FFD700;color:#111;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #e6c200;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+    .topbar a{color:#111;text-decoration:none;font-size:.85rem;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(0,0,0,.08)}
+    .topbar a:hover{background:rgba(0,0,0,.18)}
+    .topbar h1{font-size:1.1rem;font-weight:900;color:#111}
+    .topbar h1 em{color:#c41c1c;font-style:normal}
+    .back{display:inline-block;margin:12px 16px;background:#fff;border:1px solid #ddd;padding:6px 14px;border-radius:6px;text-decoration:none;color:#333;font-size:.82rem;font-weight:600}
+    .back:hover{border-color:#FFD700;color:#111}
     .wrap{max-width:860px;margin:0 auto;padding:16px}
-    .card{background:#fff;border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .card h2{font-size:1rem;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e53535}
+    .card{background:#fff;border-radius:8px;padding:20px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid #e0e0e0}
+    .card:hover{border-color:#FFD700}
+    .card h2{font-size:1rem;font-weight:800;margin-bottom:14px;padding-bottom:10px;border-bottom:3px solid #FFD700;color:#111}
     .form-group{margin-bottom:12px}
-    .form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:#555}
-    .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;outline:none;font-family:inherit}
-    .form-group input:focus,.form-group select:focus{border-color:#e53535}
-    .btn{background:#e53535;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem}
-    .btn:hover{background:#c41c1c}
-    .btn-outline{background:#fff;color:#e53535;border:2px solid #e53535;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.82rem}
-    .btn-outline:hover{background:#fff0f0}
-    .btn-green{background:#28a745;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem}
-    .btn-red{background:#dc3545;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem}
-    .badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:.72rem;font-weight:700}
-    .badge-beklemede{background:#fff3cd;color:#856404}
-    .badge-onaylandi{background:#d4edda;color:#155724}
-    .badge-reddedildi{background:#f8d7da;color:#721c24}
-    .badge-tamamlandi{background:#d1ecf1;color:#0c5460}
-    .alert{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:.85rem}
-    .alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
-    .alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}
-    .notif-dot{background:#e53535;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;margin-left:6px}
+    .form-group label{display:block;font-size:.82rem;font-weight:700;margin-bottom:4px;color:#444}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:2px solid #e0e0e0;border-radius:6px;font-size:.85rem;outline:none;font-family:inherit;color:#111}
+    .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#FFD700}
+    .btn{background:#FFD700;color:#111;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:800;font-size:.85rem}
+    .btn:hover{background:#ffe033}
+    .btn-outline{background:#fff;color:#111;border:2px solid #333;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:700;font-size:.82rem;text-decoration:none;display:inline-block}
+    .btn-outline:hover{background:#f4f4f4}
+    .btn-green{background:#27ae60;color:#fff;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem}
+    .btn-green:hover{background:#219a52}
+    .btn-red{background:#e74c3c;color:#fff;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem}
+    .btn-red:hover{background:#c0392b}
+    .badge{display:inline-block;padding:3px 9px;border-radius:4px;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+    .badge-beklemede{background:#fff3cd;color:#7a5800;border:1px solid #FFD700}
+    .badge-onaylandi{background:#e8f8ee;color:#1a6e35;border:1px solid #27ae60}
+    .badge-reddedildi{background:#fdecea;color:#922b21;border:1px solid #e74c3c}
+    .badge-tamamlandi{background:#eaf4fb;color:#1a5276;border:1px solid #3498db}
+    .badge-iptal{background:#f4f4f4;color:#666;border:1px solid #ccc}
+    .alert{padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:.85rem;font-weight:600}
+    .alert-error{background:#fdecea;color:#922b21;border:1px solid #e74c3c}
+    .alert-success{background:#e8f8ee;color:#1a6e35;border:1px solid #27ae60}
+    .notif-dot{background:#e74c3c;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;margin-left:6px}
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     """
 
 def _topbar(title="", back_url="/", back_label="Ana Sayfa"):
     return f"""
     <div class="topbar">
       <div><a href="{back_url}">← {back_label}</a></div>
-      <h1>Ekspertiz<em>Bul</em> {title}</h1>
-      <a href="/cikis">Çıkış</a>
+      <h1>&#128269; Ekspertiz<em>Bul</em> <span style="font-weight:500;font-size:.9rem">{title}</span></h1>
+      <a href="/cikis">Çıkış ↩</a>
     </div>"""
 
 def _giris_html(hata=None):
