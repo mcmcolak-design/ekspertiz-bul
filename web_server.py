@@ -1640,8 +1640,7 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         onay_btns = ""
         rid = r['id']
         if r["durum"] == "beklemede":
-            onay_btns = f'<button class="btn-green" onclick="updateApt({rid},\'onaylandi\')">Onayla</button> <button class="btn-red" onclick="updateApt({rid},\'reddedildi\')" style="margin-left:4px">Reddet</button>'
-        elif r["durum"] == "onaylandi":
+onay_btns = f'<button class="btn-green" onclick="updateApt({rid},&quot;onaylandi&quot;)">Onayla</button> <button class="btn-red" onclick="updateApt({rid},&quot;reddedildi&quot;)" style="margin-left:4px">Reddet</button>'        elif r["durum"] == "onaylandi":
             onay_btns = '<span style="color:#28a745;font-size:.78rem;font-weight:600">&#9989; Onaylandi - musteri tamamlayacak</span>'
         else:
             onay_btns = ""
