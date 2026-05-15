@@ -399,21 +399,29 @@ function initMap(){
 }
 
 function getLoc(){
-  document.getElementById('loctxt').textContent='Aliniyor...';
-  if(!navigator.geolocation){alert('Konum desteklenmiyor');return;}
-  navigator.geolocation.getCurrentPosition(function(p){
+  var txt=document.getElementById('loctxt');
+  txt.textContent='Aliniyor...';
+  if(!navigator.geolocation){txt.textContent='Tarayici konum desteklemiyor';return;}
+  function onSuccess(p){
     uLat=p.coords.latitude;uLng=p.coords.longitude;
     document.getElementById('dot').className='dot on';
-    document.getElementById('loctxt').textContent='Konum alindi';
+    txt.textContent='Konum alindi';
     map.setView([uLat,uLng],12);
     if(um)map.removeLayer(um);
     var ic=L.divIcon({html:'<div style="width:12px;height:12px;background:#e53535;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px #e53535"></div>',iconSize:[12,12],iconAnchor:[6,6]});
     um=L.marker([uLat,uLng],{icon:ic}).addTo(map).bindPopup('Siz').openPopup();
     page=1;render();
-  },function(err){
-    var msgs={1:'Konum izni reddedildi - telefon ayarlarindan izin verin',2:'Konum alinamadi - GPS acik mi?',3:'Zaman asimi - tekrar deneyin'};
-    document.getElementById('loctxt').textContent=msgs[err.code]||'Konum alinamadi ('+err.code+')';
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+  }
+  function onError(err){
+    if(err.code===1){
+      txt.textContent='Izin reddedildi - Ayarlar > Safari > Konum izni verin';
+    } else {
+      navigator.geolocation.getCurrentPosition(onSuccess,function(){
+        txt.textContent='Konum alinamadi - tekrar deneyin';
+      },{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+    }
+  }
+  navigator.geolocation.getCurrentPosition(onSuccess,onError,{enableHighAccuracy:true,timeout:15000,maximumAge:0});
 }
 
 function dist(a,b,c,d){
