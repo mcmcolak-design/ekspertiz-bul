@@ -1639,13 +1639,16 @@ def _firma_panel_html(firm, randevular, bildirimler, paketler, unread):
         arac = f"{r['arac_marka']} {r['arac_model']} {r['arac_yil']}".strip() or "-"
         rid = r['id']
         iletisim_btn = f'<a href="/randevu/{rid}/mesajlar" class="btn-outline" style="font-size:.72rem;padding:4px 8px">&#128172; Mesaj</a>'
+        onay_btns = ""
+        if r["durum"] == "beklemede":
+            onay_btns = f'<button class="btn-green" onclick="updateApt({rid}, &quot;onaylandi&quot;)">&#9989; Onayla</button> <button class="btn-red" onclick="updateApt({rid}, &quot;reddedildi&quot;)" style="margin-left:4px">&#10060; Reddet</button><br>'
         rows += f"""<tr>
           <td style="padding:8px"><b>{r['ad_soyad']}</b><br><small style="color:#888">&#128222; {r['user_tel'] or 'Tel yok'}</small><br><small style="color:#888">{r['user_email'] or ''}</small></td>
           <td style="padding:8px">{r['tarih']}<br><small>{r['saat']}</small></td>
           <td style="padding:8px">{arac}</td>
           <td style="padding:8px">{r['paket'] or '-'}</td>
           <td style="padding:8px"><span class="badge badge-{r['durum']}">{r['durum'].title()}</span></td>
-          <td style="padding:8px">{iletisim_btn}</td>
+          <td style="padding:8px">{onay_btns}{iletisim_btn}</td>
         </tr>"""
     if not rows:
         rows = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#aaa">Henüz randevu yok</td></tr>'
